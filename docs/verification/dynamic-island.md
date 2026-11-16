@@ -13,6 +13,7 @@ visuais extraídos do Vovy. OpenMausBot mantém sua licença Apache 2.0.
 
   | Ação | Mac | Windows e Linux |
   | --- | --- | --- |
+  | Ditar para o campo de texto, sem enviar | `⌘⌥⇧D` | `Ctrl+Alt+Shift+D` |
   | Falar, finalizar a fala ou interromper a resposta falada | `⌘⇧Space` | `Ctrl+Shift+Space` |
   | Ativar ou pausar a percepção da tela | `⌘⌥⇧S` | `Ctrl+Alt+Shift+S` |
   | Parar: encerra a conversa por voz ou cancela a tarefa em curso | `⌘⌥⇧X` | `Ctrl+Alt+Shift+X` |
@@ -24,9 +25,9 @@ visuais extraídos do Vovy. OpenMausBot mantém sua licença Apache 2.0.
   na ilha, com um pedido digitado, com erro ou ao bloquear a tela. Pedidos
   digitados nunca são falados. Uma resposta que chega com a tela bloqueada é
   exibida, não falada.
-- A fala usa a voz do sistema pelo navegador embutido, no idioma `pt-BR`. O
-  microfone só abre depois que a fala termina, então a ilha não ouve a própria
-  resposta.
+- A fala usa a voz do sistema pelo navegador embutido, no idioma selecionado
+  no aplicativo (tag BCP-47). O microfone só abre depois que a fala termina,
+  então a ilha não ouve a própria resposta.
 - A percepção começa pausada. Ativar percepção captura o monitor do cursor a
   cada 5 segundos, até três imagens JPEG em memória, com validade de 30 segundos.
 - Pausar, bloquear a tela, suspender ou sair descarta as imagens. Após desbloquear,
