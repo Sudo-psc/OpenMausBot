@@ -14,6 +14,10 @@ export function startIsland(deps) {
   return island;
 }
 
+export function relabelIsland() {
+  island?.controller.repaint();
+}
+
 export function disposeIsland() {
   island?.dispose();
   island = null;

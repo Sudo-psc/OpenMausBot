@@ -118,7 +118,7 @@ try {
     keyStore: { read: async () => key, write: async value => { key = value; } },
   });
   await ready(island.window);
-  await waitFor('document.getElementById("label").textContent === "Pronto para ajudar"');
+  await waitFor('document.getElementById("label").textContent === "Ready to help"');
   assert.equal(island.window.isFocusable(), false);
   await click("brand");
   await waitFor('document.getElementById("brand").getAttribute("aria-expanded") === "true"');
@@ -126,21 +126,21 @@ try {
   passed("compact and expanded window through real preload");
 
   await click("capture");
-  await waitFor('document.getElementById("context").textContent.startsWith("1 imagens")');
+  await waitFor('document.getElementById("context").textContent.startsWith("1 recent images")');
   assert.equal(uploads.length, 0);
   passed("continuous capture stays local before send");
 
   await click("configure");
   await fill("omi-key", "omi_dev_fixture_only");
   await click("connect");
-  await waitFor('document.getElementById("omi-state").textContent.includes("Conectado")');
+  await waitFor('document.getElementById("omi-state").textContent.includes("Connected")');
   assert.equal(key, "omi_dev_fixture_only");
   assert.equal(await evaluate('document.getElementById("omi-key").value'), "");
   await click("refresh");
   passed("Omi configure, secure field clearing and refresh");
 
   await send("Explique a tela e considere o contexto do Omi");
-  await waitFor('document.getElementById("label").textContent === "Resposta"');
+  await waitFor('document.getElementById("label").textContent === "Reply"');
   assert.equal(messages.length, 1);
   assert.match(messages[0].text, /Memória simulada do Omi/);
   assert.match(messages[0].text, /Memória simulada relacionada/);
@@ -165,7 +165,7 @@ try {
   await evaluate(`(()=>{window.spokenFixture=[];speechSynthesis.cancel=()=>{};speechSynthesis.speak=utterance=>{window.spokenFixture.push(utterance.text);setTimeout(()=>utterance.onend(),20)}})()`);
   const nextListen = () => once(events, "listen", { signal: AbortSignal.timeout(6000) });
   await click("voice");
-  await waitFor('document.getElementById("label").textContent === "Ouvindo…"');
+  await waitFor('document.getElementById("label").textContent === "Listening…"');
   let voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
   let listening = nextListen();
   await click("voice");
@@ -176,8 +176,8 @@ try {
 
   await listening;
   assert.deepEqual(await evaluate("window.spokenFixture"), ["Resposta simulada: contexto recebido e imagem anexada."]);
-  await waitFor('document.getElementById("cancel").textContent === "Encerrar conversa"');
-  assert.match(await evaluate('document.getElementById("hints").textContent'), /falar .* tela .* parar .* abrir/);
+  await waitFor('document.getElementById("cancel").textContent === "End conversation"');
+  assert.match(await evaluate('document.getElementById("hints").textContent'), /talk .* screen .* stop .* open/);
   voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
   listening = nextListen();
   shortcuts.get("CommandOrControl+Shift+Space")();
@@ -186,7 +186,7 @@ try {
   assert.equal(listens.length, 3);
   assert.equal((await evaluate("window.spokenFixture")).length, 2);
   shortcuts.get("CommandOrControl+Alt+Shift+X")();
-  await waitFor('document.getElementById("label").textContent === "Pronto para ajudar"');
+  await waitFor('document.getElementById("label").textContent === "Ready to help"');
   assert.equal(speaking, null);
   assert.equal(messages.length, 3);
   passed("keyboard voice conversation speaks the reply, listens again and stops by key");
@@ -203,10 +203,10 @@ try {
   await chatOpened;
   assert.deepEqual(opened, [{ botId: BOT, threadId: THREAD }]);
   await send("Aguarde a interrupção");
-  await waitFor('document.getElementById("label").textContent === "Trabalhando…"');
+  await waitFor('document.getElementById("label").textContent === "Working…"');
   await new Promise(resolve => setImmediate(resolve));
   await click("cancel");
-  await waitFor('document.getElementById("label").textContent === "Pronto para ajudar"');
+  await waitFor('document.getElementById("label").textContent === "Ready to help"');
   assert.equal(stops.length, 1);
   assert.equal(stops[0].threadId, THREAD);
   passed("open chat and cancel target only the fixture thread");
@@ -215,11 +215,11 @@ try {
   await waitFor('document.getElementById("capture").getAttribute("aria-pressed") === "false"');
   await click("configure");
   await click("disconnect");
-  await waitFor('document.getElementById("omi-state").textContent.includes("Não conectado")');
+  await waitFor('document.getElementById("omi-state").textContent.includes("Not connected")');
   assert.equal(key, null);
   const uploadCount = uploads.length;
   await send("Agora sem contexto");
-  await waitFor('document.getElementById("label").textContent === "Resposta"');
+  await waitFor('document.getElementById("label").textContent === "Reply"');
   assert.equal(messages.at(-1).text, "Agora sem contexto");
   assert.equal(uploads.length, uploadCount);
   passed("pause and disconnect prevent stale context on the next send");

@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createOmiContext } from "./island-omi.mjs";
+import { englishT } from "./island-text.mjs";
+import { createRequire } from "node:module";
 
 const KEY = "omi_dev_synthetic";
 function fixture(fetch) {
@@ -104,7 +106,7 @@ test("strips control characters including DEL, skips blank items, and flags X-Om
   ));
   await omi.refresh();
   assert.equal(omi.snapshot().status, "ready");
-  assert.equal(omi.snapshot().message, "Contexto parcial do Omi atualizado.");
+  assert.equal(omi.snapshot().message, "Partial Omi context updated.");
   assert.match(omi.context(), /ok\nlinha\t2$/);
   assert.doesNotMatch(omi.context(), /Conversa/);
   omi.dispose();
@@ -273,10 +275,10 @@ test("remember writes one private memory on command and explains a refusal", asy
     if (options.method !== "POST") return response([]);
     return status === 200 ? response({ id: "m1" }) : new Response("no", { status });
   });
-  assert.deepEqual(await omi.remember("antes de conectar"), { ok: false, message: "Conecte o Omi antes de salvar uma memória." });
+  assert.deepEqual((({ ok, message }) => ({ ok, message }))(await omi.remember("antes de conectar")), { ok: false, message: "Connect Omi before saving a memory." });
   await omi.refresh();
   assert.equal(calls.filter(call => call.options.method === "POST").length, 0);
-  assert.deepEqual(await omi.remember(`  ${"n".repeat(900)}  `), { ok: true, message: "Memória salva no Omi." });
+  assert.deepEqual((({ ok, message }) => ({ ok, message }))(await omi.remember(`  ${"n".repeat(900)}  `)), { ok: true, message: "Memory saved to Omi." });
   const post = calls.find(call => call.options.method === "POST");
   assert.equal(post.url, "https://api.omi.me/v1/dev/user/memories");
   assert.equal(post.options.redirect, "error");
@@ -287,9 +289,21 @@ test("remember writes one private memory on command and explains a refusal", asy
   status = 403;
   assert.match((await omi.remember("nota")).message, /memories:write/);
   status = 429;
-  assert.match((await omi.remember("nota")).message, /mais tarde/);
+  assert.match((await omi.remember("nota")).message, /saving again later/);
   assert.equal(omi.snapshot().status, "ready");
   await omi.disconnect();
   assert.equal((await omi.remember("nota")).ok, false);
+  omi.dispose();
+});
+
+test("messages the adapter reports follow a change of language", async () => {
+  const pt = createRequire(import.meta.url)("./native-text.cjs").createNativeText({ saved: "pt-br" }).t;
+  let language = englishT;
+  const omi = createOmiContext({ fetch: async () => { throw new Error("offline"); }, readKey: async () => KEY,
+    writeKey: async () => {}, t: (key, params) => language(key, params), now: () => 0, setTimer: () => 0, clearTimer: () => {} });
+  await omi.refresh();
+  assert.equal(omi.snapshot().message, "Couldn't update Omi. We'll try again.");
+  language = pt;
+  assert.equal(omi.snapshot().message, "Não foi possível atualizar o Omi. Tentaremos novamente.");
   omi.dispose();
 });

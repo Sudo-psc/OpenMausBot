@@ -13,8 +13,7 @@ export function shortcutLabel(accelerator, platform = process.platform) {
   return platform === "darwin" ? keys.map(key => MAC_SYMBOLS[key] ?? key).join("") : keys.map(key => OTHER_NAMES[key] ?? key).join("+");
 }
 
-/** Registers each island action whose key no other application holds. `labels` names only those, so the island never
- * advertises a key that does nothing. */
+/** Registers each island action whose key no other application holds. */
 export function createIslandShortcuts({ globalShortcut, actions, platform = process.platform }) {
   const held = [], labels = {};
   for (const [name, accelerator] of Object.entries(ISLAND_SHORTCUTS)) {

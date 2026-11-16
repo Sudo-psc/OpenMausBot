@@ -147,12 +147,12 @@ test("a streamed reply is spoken sentence by sentence and reported once when it 
   const { p, spoken } = voice();
   p.render({ state: "thinking", speech: { turn: 3, text: "Olá, **Philipe**. A reun", done: false } });
   assert.deepEqual(spoken.map(item => item.text), ["Olá, Philipe."]);
-  assert.equal(spoken[0].lang, "pt-BR");
+  assert.equal(spoken[0].lang, "en");
   p.render({ state: "thinking", speech: { turn: 3, text: "Olá, **Philipe**. A reun", done: false } });
   assert.equal(spoken.length, 1);
   p.render({ state: "reply", speech: { turn: 3, text: "Olá, **Philipe**. A reunião é às 10h", done: true } });
   assert.deepEqual(spoken.map(item => item.text), ["Olá, Philipe.", "A reunião é às 10h"]);
-  assert.equal(p.elements.get("label").textContent, "Falando…");
+  assert.equal(p.elements.get("label").textContent, "Speaking…");
   spoken[0].onend();
   assert.deepEqual(p.calls, []);
   spoken[1].onerror(); spoken[1].onend();
@@ -176,7 +176,7 @@ test("the conversation can be ended from the island and with Escape", () => {
   const p = page();
   p.render({ expanded: true, state: "reply", conversation: true });
   assert.equal(p.elements.get("cancel").hidden, false);
-  assert.equal(p.elements.get("cancel").textContent, "Encerrar conversa");
+  assert.equal(p.elements.get("cancel").textContent, "End conversation");
   p.click("cancel");
   p.listeners.keydown({ key: "Escape" });
   assert.deepEqual(p.calls, [["stop"], ["stop"]]);
@@ -194,11 +194,11 @@ test("saving to Omi needs a connection and either a typed note or an answer", ()
   p.click("save-omi");
   assert.deepEqual(p.calls, []);
   p.render({ canSaveReply: true });
-  assert.equal(p.elements.get("save-omi").textContent, "Salvar resposta");
+  assert.equal(p.elements.get("save-omi").textContent, "Save reply");
   p.click("save-omi");
   const field = p.elements.get("prompt");
   field.value = "  Prazo: 30/11  "; field.listeners.input();
-  assert.equal(p.elements.get("save-omi").textContent, "Salvar nota");
+  assert.equal(p.elements.get("save-omi").textContent, "Save note");
   p.click("save-omi");
   assert.deepEqual(p.calls, [["saveToOmi", ""], ["saveToOmi", "Prazo: 30/11"]]);
   assert.equal(field.value, "");
@@ -212,7 +212,7 @@ test("only the keys the island really holds are shown", () => {
   assert.equal(p.elements.get("hints").hidden, true);
   p.render({ shortcuts: { voice: "⌘⇧Space", stop: "⌘⌥⇧X" } });
   assert.equal(p.elements.get("hints").hidden, false);
-  assert.equal(p.elements.get("hints").textContent, "⌘⇧Space falar · ⌘⌥⇧X parar");
+  assert.equal(p.elements.get("hints").textContent, "⌘⇧Space: talk · ⌘⌥⇧X: stop");
 });
 
 test("a long reply is spoken whole, in bounded utterances, before the turn is reported", () => {
@@ -226,4 +226,18 @@ test("a long reply is spoken whole, in bounded utterances, before the turn is re
   assert.deepEqual(p.calls, []);
   spoken[1].onend();
   assert.deepEqual(p.calls, [["spoken", 4]]);
+});
+
+test("speech uses the language the island was given, not a fixed one", () => {
+  const { p, spoken } = voice();
+  p.render({ labels: { lang: "pt-BR" }, state: "reply", speech: { turn: 5, text: "Outra resposta.", done: true } });
+  assert.equal(spoken.at(-1).lang, "pt-BR");
+});
+
+test("the document language follows the labels the island is given", () => {
+  const p = page();
+  p.render({ labels: { lang: "pt-BR" } });
+  assert.equal(p.context.document.documentElement.lang, "pt-BR");
+  p.render({ labels: { lang: "en" } });
+  assert.equal(p.context.document.documentElement.lang, "en");
 });

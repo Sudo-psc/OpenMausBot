@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { createIslandSession } from "./island-session.mjs";
 import { prepareIslandMessage } from "./island-context-message.mjs";
+import { englishT } from "./island-text.mjs";
+import { createRequire } from "node:module";
 
 const CHAT = { botId: "bot-1", threadId: "thread-1" };
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -17,7 +19,7 @@ function harness(options = {}) {
       dispose: () => { h.active = false; h.frameList = []; h.disposed += 1; } },
     omi: { snapshot: () => ({ status: "ready" }), context: () => h.omiContext,
       recall: options.recall ?? (async (query, opts) => { h.recalls.push([query, opts]); return h.recalled; }),
-      remember: options.remember ?? (async note => { h.remembered.push(note); return { ok: true, message: "Memória salva no Omi." }; }),
+      remember: options.remember ?? (async note => { h.remembered.push(note); return { ok: true, message: "Memory saved to Omi." }; }),
       configure: options.configure ?? (async () => {}), disconnect: options.disconnect ?? (async () => {}), refresh: async () => {}, dispose: () => { h.disposed += 1; } },
     speech: { busy: () => h.busy, start: (sink, opts) => { h.sink = sink; h.starts.push(opts); },
       stop: sink => h.stopped.push(sink), finish: sink => h.finished.push(sink) },
@@ -28,6 +30,7 @@ function harness(options = {}) {
     } },
     request: async (...args) => { h.requests.push(args); return options.request ? options.request(...args) : { ok: true }; },
     render: view => h.views.push(view), openChat: chat => h.opened.push(chat), allowed: options.allowed ?? (() => true),
+    t: options.t,
     prepareMessage: options.prepareMessage ?? (async input => { h.preparations.push(input); return "prepared: " + input.text; }),
   });
   return h;
@@ -66,10 +69,10 @@ test("busy voice is preserved and forbidden local tasks are not sent", async () 
   const h = harness({ allowed: () => false });
   h.busy = true; h.session.toggleVoice();
   assert.equal(h.starts.length, 0);
-  assert.match(h.views.at(-1).text, /microfone/);
+  assert.match(h.views.at(-1).text, /microphone/);
   await h.session.send("Please act");
   assert.equal(h.asks.length, 0);
-  assert.match(h.views.at(-1).text, /deste computador/);
+  assert.match(h.views.at(-1).text, /on this computer/);
   h.session.dispose();
 });
 
@@ -100,7 +103,7 @@ test("cancel calls the real interrupt route, waits before new sends and reports 
   assert.equal(h.asks.length, 1);
   interrupted.resolve({ ok: false }); await cancel; await sending;
   assert.equal(h.views.at(-1).state, "error");
-  assert.match(h.views.at(-1).text, /confirmar o cancelamento/);
+  assert.match(h.views.at(-1).text, /confirm the cancellation/);
   h.session.dispose();
 });
 
@@ -190,7 +193,7 @@ test("uncertain message acceptance is not reported as a confirmed cancellation",
   await h.session.pause(); await sending;
   assert.equal(h.requests.length, 0);
   assert.equal(h.views.at(-1).state, "error");
-  assert.match(h.views.at(-1).text, /confirmar o cancelamento/);
+  assert.match(h.views.at(-1).text, /confirm the cancellation/);
   assert.equal(h.views.at(-1).text.includes("private"), false);
   h.session.dispose();
 });
@@ -202,7 +205,7 @@ test("timeout while preparing restores an actionable error instead of remaining 
   const send = h.session.send("Act");
   mock.timers.tick(180_000); await send;
   assert.equal(h.views.at(-1).state, "error");
-  assert.match(h.views.at(-1).text, /espera terminou/);
+  assert.match(h.views.at(-1).text, /wait ended/);
   assert.equal(h.asks.length, 0);
   h.session.dispose();
 });
@@ -217,7 +220,7 @@ test("other UI errors during preparation cannot replace the person's prompt", as
   h.session.dispose();
 });
 
-for (const [action, message] of [["configureOmi", /conectar o Omi/], ["disconnectOmi", /remover a chave do Omi/]]) {
+for (const [action, message] of [["configureOmi", /connect Omi/], ["disconnectOmi", /remove the Omi key/]]) {
   test(`a failed ${action} keeps an active task cancellable`, async () => {
     const answer = deferred();
     const failure = async () => { throw new Error("fixture Omi error"); };
@@ -369,7 +372,7 @@ test("saving to Omi sends the typed note, or the last exchange, only on command"
   await h.session.saveToOmi("  Prazo do artigo: 30 de novembro  ");
   await h.session.saveToOmi();
   assert.deepEqual(h.remembered, ["Prazo do artigo: 30 de novembro", "Pergunta: Qual é o prazo?\nResposta: Fixture answer"]);
-  assert.equal(h.views.at(-1).omiNote, "Memória salva no Omi.");
+  assert.equal(h.views.at(-1).omiNote, "Memory saved to Omi.");
   h.session.dispose();
 
   const refused = harness({ remember: async () => ({ ok: false, message: "O Omi recusou salvar a memória." }) });
@@ -406,4 +409,28 @@ test("pausing perception while Omi is still searching keeps the screen off the r
     assert.equal(h.asks.length, 1);
     h.session.dispose();
   }
+});
+
+test("a message on screen is translated again when the language changes", async () => {
+  const pt = createRequire(import.meta.url)("./native-text.cjs").createNativeText({ saved: "pt-br" }).t;
+  let language = englishT;
+  const h = harness({ t: (key, params) => language(key, params), ask: async () => { throw new Error("offline"); } });
+  await h.session.send("Pergunta");
+  assert.equal(h.views.at(-1).text, "Couldn't send. Check that MausBot is ready and try again.");
+  language = pt;
+  h.session.repaint();
+  assert.equal(h.views.at(-1).text, "Não foi possível enviar. Verifique se o MausBot está pronto e tente novamente.");
+  h.session.dispose();
+});
+
+test("a reply is never translated, and the needs-you hint is shown in the current language", async () => {
+  const pt = createRequire(import.meta.url)("./native-text.cjs").createNativeText({ saved: "pt-br" }).t;
+  let language = englishT;
+  const h = harness({ t: (key, params) => language(key, params), ask: async input => { input.onUpdate({ kind: "reply", text: "Pronto." }); return "needs-you"; } });
+  await h.session.send("Oi");
+  assert.equal(h.views.at(-1).text, "Pronto.\nOpen the chat to continue.");
+  language = pt;
+  h.session.repaint();
+  assert.equal(h.views.at(-1).text, "Pronto.\nAbra a conversa para continuar.");
+  h.session.dispose();
 });
