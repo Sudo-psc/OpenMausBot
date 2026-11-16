@@ -2,10 +2,12 @@
   "ok": true,
   "checks": [
     "compact and expanded window through real preload",
+    "computer control state is shown and turned on from the island",
     "continuous capture stays local before send",
     "Omi configure, secure field clearing and refresh",
     "text sends Omi and image context and displays streamed reply",
     "dark and light screenshots contain only fixture data",
+    "dictation fills the box for review and sends nothing",
     "voice start, finish and transcript submission",
     "keyboard voice conversation speaks the reply, listens again and stops by key",
     "a typed note is saved to Omi only on command",

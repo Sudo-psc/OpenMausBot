@@ -7,10 +7,11 @@ const { createNativeText, englishText } = createRequire(import.meta.url)("./nati
 
 test("the island shows the app's language and falls back to English for a language without a pack", () => {
   const portuguese = islandLabels(createNativeText({ saved: "pt-br" }).t, "pt-BR");
-  assert.equal(portuguese.voice, "Falar");
+  assert.equal(portuguese.voice, "Conversar");
+  assert.equal(portuguese.dictate, "Ditar");
   assert.equal(portuguese.endConversation, "Encerrar conversa");
   assert.equal(portuguese.lang, "pt-BR");
   const unknown = islandLabels(createNativeText({ saved: "xx-unknown" }).t);
-  assert.equal(unknown.voice, "Talk");
+  assert.equal(unknown.voice, "Voice chat");
   assert.equal(islandLabels(englishText.t).saveReply, "Save reply");
 });

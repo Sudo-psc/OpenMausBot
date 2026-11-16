@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { createDesktopScreenCapture, createScreenContext, SCREEN_CONTEXT_LIMITS } from "./island-screen-context.mjs";
+import { createDesktopScreenCapture, createScreenContext, SCREEN_CONTEXT_LIMITS, SCREEN_TIMELINE_LIMITS } from "./island-screen-context.mjs";
 
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const frame = text => ({ dataUrl: `data:image/jpeg;base64,${Buffer.from(text).toString("base64")}`, displayId: "7" });
@@ -94,10 +94,12 @@ test("desktop capture follows the pointer display and requests no audio", async 
     screen: { getCursorScreenPoint: () => ({ x: 1600, y: 50 }), getDisplayNearestPoint: point => { assert.equal(point.x, 1600); return { id: 7 }; } },
     desktopCapturer: { getSources: async input => { options = input; return [
       { display_id: "1", thumbnail: { isEmpty: () => false, toJPEG: () => Buffer.from("wrong") } },
-      { display_id: "7", thumbnail: { isEmpty: () => false, toJPEG: quality => { assert.equal(quality, 55); return Buffer.from("right"); } } },
+      { display_id: "7", thumbnail: { isEmpty: () => false, toJPEG: quality => { assert.equal(quality, 55); return Buffer.from("right"); },
+        resize: size => { assert.deepEqual(size, { width: 9, height: 8, quality: "good" }); return { toBitmap: () => Buffer.alloc(9 * 8 * 4, 200) }; } } },
     ]; } },
+    describe: async () => ({ app: "Notas", windows: ["Lista de compras"] }),
   });
-  assert.deepEqual(await capture(), frame("right"));
+  assert.deepEqual(await capture(), { ...frame("right"), signature: "0000000000000000", app: "Notas", windows: ["Lista de compras"] });
   assert.deepEqual(options, { types: ["screen"], thumbnailSize: { width: 960, height: 600 }, fetchWindowIcons: false });
 });
 
@@ -115,4 +117,54 @@ test("a missing display never silently captures another monitor", async () => {
     screen: { getCursorScreenPoint: () => ({}), getDisplayNearestPoint: () => ({ id: 7 }) },
     desktopCapturer: { getSources: async () => [{ display_id: "99" }] } });
   await assert.rejects(capture(), /selected display is unavailable/);
+});
+
+const seen = (text, signature, app = "Safari", window = "Inbox") => ({ ...frame(text), signature, app, windows: [window] });
+
+test("near-copies refresh the newest moment, and a real change starts a new one", async () => {
+  const shots = [seen("a", "0000000000000000"), seen("b", "0000000000000001"), seen("c", "ffffffffffffffff"), seen("d", "ffffffffffffffff", "Notas", "Lista")];
+  let calls = 0;
+  const h = harness(async () => shots[Math.min(calls++, shots.length - 1)]);
+  h.context.start(); await flush();
+  await h.tick();
+  assert.equal(h.context.frames().length, 1);
+  assert.equal(h.context.frames()[0].dataUrl, frame("b").dataUrl);
+  assert.equal(h.context.frames()[0].reason, "first");
+  assert.ok(h.context.frames()[0].capturedAt > h.context.frames()[0].since);
+  await h.tick(); await h.tick();
+  assert.deepEqual(h.context.frames().map(item => item.reason), ["first", "screen", "app"]);
+  assert.equal(h.context.snapshot().app, "Notas");
+  assert.deepEqual(h.context.snapshot().windows, ["Lista"]);
+  h.context.pause();
+  assert.equal(h.context.snapshot().app, "");
+});
+
+test("a conversation keeps a longer record, and ending it returns to the short one", async () => {
+  let calls = 0;
+  const h = harness(async () => seen(`shot-${calls}`, (calls++ % 2 ? "ffffffffffffffff" : "0000000000000000"), `App ${calls}`));
+  h.context.setContinuous(true);
+  h.context.start(); await flush();
+  for (let i = 0; i < 14; i += 1) await h.tick();
+  assert.equal(h.context.frames().length, SCREEN_TIMELINE_LIMITS.maxFrames);
+  assert.equal(h.context.snapshot().continuous, true);
+  h.context.setContinuous(false);
+  assert.equal(h.context.frames().length, SCREEN_CONTEXT_LIMITS.maxFrames);
+  assert.equal(h.context.snapshot().continuous, false);
+});
+
+test("selection returns nothing once perception is paused, even mid-choice", async () => {
+  let release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  let time = 1_000, calls = 0;
+  const context = createScreenContext({ now: () => time, setTimer: () => 1, clearTimer: () => {},
+    captureFrame: async () => seen(`shot-${calls}`, calls++ % 2 ? "ffffffffffffffff" : "0000000000000000", `App ${calls}`),
+    embed: async () => { await waiting; return null; } });
+  context.setContinuous(true);
+  context.start(); await flush();
+  assert.equal((await context.select("")).length, 1);
+  const choosing = context.select("pedido");
+  context.pause();
+  release();
+  assert.deepEqual(await choosing, []);
+  assert.deepEqual(await context.select("pedido"), []);
 });

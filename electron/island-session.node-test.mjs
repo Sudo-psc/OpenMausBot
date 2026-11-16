@@ -12,10 +12,13 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 function harness(options = {}) {
   const h = { views: [], asks: [], preparations: [], requests: [], starts: [], stopped: [], finished: [], opened: [],
     active: false, busy: false, frameList: [], omiContext: "Omi fixture context", disposed: 0, sink: null,
-    recalls: [], recalled: "", remembered: [] };
+    recalls: [], recalled: "", remembered: [], selections: [], continuous: [], app: "Notas", windows: ["Lista de compras"],
+    computerNow: { ready: true, reason: null, fix: null }, enabled: 0 };
   h.session = createIslandSession({
-    screenContext: { snapshot: () => ({ active: h.active, frameCount: h.frameList.length }),
-      frames: () => h.frameList, start: () => { h.active = true; }, pause: () => { h.active = false; h.frameList = []; },
+    screenContext: { snapshot: () => ({ active: h.active, frameCount: h.frameList.length, app: h.app, windows: h.windows }),
+      frames: () => h.frameList, select: async (query, signal) => { h.selections.push([query, signal]); return h.active ? h.frameList : []; },
+      setContinuous: on => h.continuous.push(on),
+      start: () => { h.active = true; }, pause: () => { h.active = false; h.frameList = []; },
       dispose: () => { h.active = false; h.frameList = []; h.disposed += 1; } },
     omi: { snapshot: () => ({ status: "ready" }), context: () => h.omiContext,
       recall: options.recall ?? (async (query, opts) => { h.recalls.push([query, opts]); return h.recalled; }),
@@ -30,7 +33,8 @@ function harness(options = {}) {
     } },
     request: async (...args) => { h.requests.push(args); return options.request ? options.request(...args) : { ok: true }; },
     render: view => h.views.push(view), openChat: chat => h.opened.push(chat), allowed: options.allowed ?? (() => true),
-    t: options.t,
+    t: options.t, clock: () => ({ toLocaleString: () => "16/11/2026 10:00" }),
+    computer: { now: options.computerNow ?? (async () => h.computerNow), start: async () => { h.enabled += 1; h.computerNow = { ready: true, reason: null, fix: null }; return h.computerNow; } },
     prepareMessage: options.prepareMessage ?? (async input => { h.preparations.push(input); return "prepared: " + input.text; }),
   });
   return h;
@@ -57,6 +61,7 @@ test("speech is opt-in, finishes on command and sends only its own final transcr
   const h = harness();
   h.session.toggleVoice();
   assert.deepEqual(h.starts, [{ endpointMs: 1500 }]);
+  assert.equal(h.views.at(-1).mode, "conversation");
   h.sink.transcript({ text: "Ajude com a tela" });
   assert.equal(h.asks.length, 0);
   h.session.toggleVoice(); assert.deepEqual(h.finished, [h.sink]);
@@ -432,5 +437,90 @@ test("a reply is never translated, and the needs-you hint is shown in the curren
   language = pt;
   h.session.repaint();
   assert.equal(h.views.at(-1).text, "Pronto.\nAbra a conversa para continuar.");
+  h.session.dispose();
+});
+
+test("dictation fills the draft for review and never sends, speaks or starts a conversation", async () => {
+  const h = harness();
+  h.session.dictate();
+  assert.equal(h.views.at(-1).state, "listening");
+  assert.equal(h.views.at(-1).mode, "dictation");
+  h.sink.transcript({ text: "  Marcar retorno do paciente  " });
+  h.session.dictate();
+  assert.deepEqual(h.finished, [h.sink]);
+  h.sink.end({ code: 0 }); await flush();
+  assert.equal(h.asks.length, 0);
+  assert.deepEqual(h.views.at(-1).draft, { id: 1, text: "Marcar retorno do paciente" });
+  assert.equal(h.views.at(-1).state, "idle");
+  assert.equal(h.views.at(-1).mode, null);
+  assert.equal(h.views.at(-1).speech, null);
+  assert.deepEqual(h.continuous.filter(Boolean), []);
+  h.session.dispose();
+});
+
+test("only a voice conversation keeps the longer screen record, and it ends with the conversation", async () => {
+  const h = harness();
+  h.session.toggleVoice();
+  assert.equal(h.continuous.at(-1), true);
+  await say(h, "O que mudou na tela?");
+  assert.equal(h.continuous.at(-1), true);
+  h.session.stop();
+  assert.equal(h.continuous.at(-1), false);
+  h.session.toggleVoice();
+  await h.session.send("Pedido digitado");
+  assert.equal(h.continuous.at(-1), false);
+  h.session.dispose();
+});
+
+test("a request carries the app in front, open windows, the time and whether the computer can be controlled", async () => {
+  const h = harness();
+  h.session.toggleCapture();
+  h.frameList = [{ dataUrl: "fixture-image", app: "Notas" }];
+  await h.session.send("Organize esta lista");
+  assert.equal(h.selections[0][0], "Organize esta lista");
+  assert.deepEqual(h.preparations[0].surroundings, { localTime: "16/11/2026 10:00", computerReady: true, app: "Notas", windows: ["Lista de compras"] });
+  assert.equal(h.views.at(-1).capture.app, "Notas");
+  h.session.toggleCapture();
+  h.computerNow = { ready: false, reason: "permissions", fix: "allow" };
+  await h.session.send("E agora?");
+  assert.equal(h.preparations[1].surroundings, undefined);
+  assert.deepEqual(h.views.at(-1).computer, { ready: false, reason: "permissions", fix: "allow" });
+  await h.session.enableComputer();
+  assert.equal(h.enabled, 1);
+  assert.equal(h.views.at(-1).computer.ready, true);
+  h.session.dispose();
+});
+
+test("pausing perception while computer control is still being read keeps the screen off the request", async () => {
+  for (const pause of ["toggleCapture", "suspend"]) {
+    const reading = deferred();
+    const h = harness({ computerNow: () => reading.promise });
+    h.session.toggleCapture();
+    h.frameList = [{ dataUrl: "fixture-image" }];
+    const sending = h.session.send("Explique a tela"); await flush();
+    h.session[pause]();
+    reading.resolve({ ready: true, reason: null, fix: null }); await sending;
+    assert.deepEqual(h.preparations.map(input => input.frames), [[]]);
+    assert.equal(h.preparations[0].surroundings, undefined);
+    h.session.dispose();
+  }
+});
+
+test("every way out of a voice chat returns to the short screen record", async () => {
+  for (const result of ["failed", "needs-you"]) {
+    const h = harness({ ask: async input => { input.onUpdate({ kind: "reply", text: "Parcial" }); return result; } });
+    h.session.toggleVoice();
+    assert.equal(h.continuous.at(-1), true);
+    await say(h, "Pedido");
+    assert.equal(h.continuous.at(-1), false);
+    h.session.dispose();
+  }
+  let allowed = true;
+  const h = harness({ allowed: () => allowed });
+  h.session.toggleVoice();
+  allowed = false;
+  await say(h, "Pedido");
+  assert.equal(h.continuous.at(-1), false);
+  assert.equal(h.views.at(-1).conversation, false);
   h.session.dispose();
 });

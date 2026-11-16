@@ -13,6 +13,7 @@ visuais extraídos do Vovy. OpenMausBot mantém sua licença Apache 2.0.
 
   | Ação | Mac | Windows e Linux |
   | --- | --- | --- |
+  | Ditar para o campo de texto, sem enviar | `⌘⌥⇧D` | `Ctrl+Alt+Shift+D` |
   | Falar, finalizar a fala ou interromper a resposta falada | `⌘⇧Space` | `Ctrl+Shift+Space` |
   | Ativar ou pausar a percepção da tela | `⌘⌥⇧S` | `Ctrl+Alt+Shift+S` |
   | Parar: encerra a conversa por voz ou cancela a tarefa em curso | `⌘⌥⇧X` | `Ctrl+Alt+Shift+X` |
@@ -24,9 +25,9 @@ visuais extraídos do Vovy. OpenMausBot mantém sua licença Apache 2.0.
   na ilha, com um pedido digitado, com erro ou ao bloquear a tela. Pedidos
   digitados nunca são falados. Uma resposta que chega com a tela bloqueada é
   exibida, não falada.
-- A fala usa a voz do sistema pelo navegador embutido, no idioma `pt-BR`. O
-  microfone só abre depois que a fala termina, então a ilha não ouve a própria
-  resposta.
+- A fala usa a voz do sistema pelo navegador embutido, no idioma selecionado
+  no aplicativo (tag BCP-47). O microfone só abre depois que a fala termina,
+  então a ilha não ouve a própria resposta.
 - A percepção começa pausada. Ativar percepção captura o monitor do cursor a
   cada 5 segundos, até três imagens JPEG em memória, com validade de 30 segundos.
 - Pausar, bloquear a tela, suspender ou sair descarta as imagens. Após desbloquear,
@@ -144,6 +145,36 @@ com exit 1; antes, a janela fechada encerrava o Electron com exit 0.
 Não verificado nesta rodada: voz real do macOS, microfone, atalhos globais
 reais, captura real da tela e conta Omi real, incluindo a busca
 `memories/vector/search` e a gravação com escopo `memories:write`.
+
+### Ditado, conversa e consciência do computador
+
+- **Ditar** (`⌘⌥⇧D` / `Ctrl+Alt+Shift+D`): a fala vira texto no campo, para revisar
+  e enviar. Nada é enviado nem falado.
+- **Conversar** (`⌘⇧Space` / `Ctrl+Shift+Space`): conversa por voz contínua, com
+  resposta falada. Os dois modos têm botão, rótulo e aviso próprios.
+- **Registro durante a conversa:** com a percepção ativa, a ilha guarda só em
+  memória até 12 momentos dos últimos 5 minutos (fora da conversa: 3 momentos, 30
+  segundos). Pausar, bloquear a tela ou encerrar a conversa descarta o excedente.
+- **Filtro de novidade:** cada captura recebe uma assinatura visual de 64 bits. A
+  ilha espera que a próxima tela se pareça com a última guardada e só guarda outra
+  quando isso falha: outro app na frente, outra janela, ou mudança visual acima da
+  inquietação recente da tela. É uma heurística preditiva, não um modelo treinado.
+- **Escolha do que enviar:** cada pedido leva no máximo 3 imagens: a mais recente
+  e as anteriores cujo app e janelas mais combinam com o pedido.
+- **Embeddings locais (opcional):** com `--island-embeddings`, a combinação usa
+  embeddings de texto de um modelo no próprio computador (Ollama em
+  `127.0.0.1:11434`, modelo `embeddinggemma`). Só endereços locais são aceitos.
+  Sem o modelo, a ilha usa palavras em comum.
+- **Situação do computador:** com a percepção ativa, o pedido leva a hora local,
+  o app em primeiro plano (no Mac, via `lsappinfo`), os nomes de até 6 janelas
+  abertas e se o controle do computador está disponível, com a orientação para o
+  bot usar suas ferramentas de controle e conferir a tela antes de agir. Com a
+  percepção pausada, nada disso é enviado.
+- **Controle do computador:** a ilha mostra o estado do controle que os bots já
+  usam e oferece Ativar ou Permitir quando há correção possível.
+
+Não verificado em Mac real: a saída de `lsappinfo`, a ordem das janelas, a
+assinatura visual em telas reais e um modelo `embeddinggemma` de verdade.
 
 ### Idioma da ilha
 

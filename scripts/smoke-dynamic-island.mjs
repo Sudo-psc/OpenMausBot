@@ -21,6 +21,7 @@ const messages = [], uploads = [], stops = [], opened = [], checks = [], remembe
 const events = new EventEmitter();
 let island, savedChat = null, stream = null, key = null, speaking = null;
 const shortcuts = new Map();
+let computerState = { ready: false, reason: "permissions", fix: "allow" };
 const encoder = new TextEncoder();
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 function emit(value) { stream?.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`)); }
@@ -114,7 +115,9 @@ try {
     dataDir: temporary, prefs: { quickAsksChat: () => savedChat, setQuickAsksChat: (_server, chat) => { savedChat = chat; } },
     openChat: chat => { opened.push(chat); events.emit("open-chat"); }, allowed: () => true, starting: () => false,
     globalShortcut: { register: (accelerator, press) => { shortcuts.set(accelerator, press); return true; }, unregister: accelerator => shortcuts.delete(accelerator) }, createOmi,
-    captureFrame: async () => ({ dataUrl: `data:image/png;base64,${PNG.toString("base64")}`, displayId: "fixture-display" }),
+    captureFrame: async () => ({ dataUrl: `data:image/png;base64,${PNG.toString("base64")}`, displayId: "fixture-display", app: "Fixture Notes", windows: ["Fixture list"] }),
+    embedder: null,
+    computer: { now: async () => computerState, start: async () => { computerState = { ready: true, reason: null, fix: null }; return computerState; } },
     keyStore: { read: async () => key, write: async value => { key = value; } },
   });
   await ready(island.window);
@@ -125,9 +128,16 @@ try {
   assert.equal(island.window.isFocusable(), true);
   passed("compact and expanded window through real preload");
 
+  await waitFor('document.getElementById("computer-state").textContent === "macOS hasn\'t allowed computer control"');
+  await click("computer-enable");
+  await waitFor('document.getElementById("computer-state").textContent === "Computer control ready"');
+  assert.equal(await evaluate('document.getElementById("computer-enable").hidden'), true);
+  passed("computer control state is shown and turned on from the island");
+
   await click("capture");
   await waitFor('document.getElementById("context").textContent.startsWith("1 recent images")');
   assert.equal(uploads.length, 0);
+  await waitFor('document.getElementById("capture-status").textContent === "Screen in view · Fixture Notes"');
   passed("continuous capture stays local before send");
 
   await click("configure");
@@ -145,6 +155,9 @@ try {
   assert.match(messages[0].text, /Memória simulada do Omi/);
   assert.match(messages[0].text, /Memória simulada relacionada/);
   assert.deepEqual(recalls, ["Explique a tela e considere o contexto do Omi"]);
+  assert.match(messages[0].text, /App em primeiro plano \(nome citado\): "Fixture Notes"/);
+  assert.match(messages[0].text, /Janelas abertas \(nomes citados\): \["Fixture list"\]/);
+  assert.match(messages[0].text, /Controle do computador: disponível\./);
   assert.match(messages[0].text, /<attached-image path="\/fixture\/attachments\/screen-1.png"/);
   assert.equal(uploads.length, 1);
   assert.deepEqual(uploads[0].bytes, PNG);
@@ -164,6 +177,17 @@ try {
 
   await evaluate(`(()=>{window.spokenFixture=[];speechSynthesis.cancel=()=>{};speechSynthesis.speak=utterance=>{window.spokenFixture.push(utterance.text);setTimeout(()=>utterance.onend(),20)}})()`);
   const nextListen = () => once(events, "listen", { signal: AbortSignal.timeout(6000) });
+  await click("dictate");
+  await waitFor('document.getElementById("label").textContent === "Dictating…"');
+  assert.match(await evaluate('document.getElementById("mode").textContent'), /^Dictation:/);
+  await click("dictate");
+  await waitFor('document.getElementById("prompt").value === "Comando de voz simulado"');
+  await waitFor('document.getElementById("label").textContent === "Ready to help"');
+  assert.equal(messages.length, 1);
+  assert.equal(await evaluate("window.spokenFixture.length"), 0);
+  await fill("prompt", "");
+  passed("dictation fills the box for review and sends nothing");
+
   await click("voice");
   await waitFor('document.getElementById("label").textContent === "Listening…"');
   let voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
@@ -177,13 +201,13 @@ try {
   await listening;
   assert.deepEqual(await evaluate("window.spokenFixture"), ["Resposta simulada: contexto recebido e imagem anexada."]);
   await waitFor('document.getElementById("cancel").textContent === "End conversation"');
-  assert.match(await evaluate('document.getElementById("hints").textContent'), /talk .* screen .* stop .* open/);
+  assert.match(await evaluate('document.getElementById("hints").textContent'), /voice chat .* dictate .* screen .* stop .* open|dictate .* voice chat .* screen .* stop .* open/);
   voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
   listening = nextListen();
   shortcuts.get("CommandOrControl+Shift+Space")();
   await voiceReceived;
   await listening;
-  assert.equal(listens.length, 3);
+  assert.equal(listens.length, 4);
   assert.equal((await evaluate("window.spokenFixture")).length, 2);
   shortcuts.get("CommandOrControl+Alt+Shift+X")();
   await waitFor('document.getElementById("label").textContent === "Ready to help"');
