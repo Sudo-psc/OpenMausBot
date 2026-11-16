@@ -2,12 +2,19 @@ import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { dynamicIslandHtml, ISLAND_SIZE } from "./island-page.mjs";
 import { createDesktopScreenCapture, createScreenContext } from "./island-screen-context.mjs";
+import { createLocalEmbedder } from "./island-embeddings.mjs";
+import { createSurroundings } from "./island-surroundings.mjs";
 import { createOmiContext } from "./island-omi.mjs";
 import { createIslandKeyStore } from "./island-key-store.mjs";
 import { createIslandSession } from "./island-session.mjs";
 import { englishT, islandLabels } from "./island-text.mjs";
 import { createIslandShortcuts } from "./island-shortcuts.mjs";
 import { createTalkServer } from "./talk-server.mjs";
+
+/** `--island-embeddings` turns on text embeddings from a model on this computer, to choose which screens fit a request. */
+function islandEmbedder(argv = process.argv) {
+  return argv.includes("--island-embeddings") ? createLocalEmbedder() : null;
+}
 
 export function islandBounds(display, expanded) {
   const width = Math.min(display.bounds.width, expanded ? ISLAND_SIZE.expandedWidth : ISLAND_SIZE.compactWidth);
@@ -17,7 +24,7 @@ export function islandBounds(display, expanded) {
 
 export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, systemPreferences, safeStorage,
   nativeImage, iconPath, powerMonitor, speech, request, prefs, dataDir, openChat, allowed, starting,
-  globalShortcut, createOmi = createOmiContext, captureFrame, keyStore: suppliedKeyStore, t = englishT, intlTag = () => "en" }) {
+  globalShortcut, createOmi = createOmiContext, captureFrame, keyStore: suppliedKeyStore, t = englishT, intlTag = () => "en", computer, embedder = islandEmbedder() }) {
   const display = screen.getPrimaryDisplay();
   const win = new BrowserWindow({ ...islandBounds(display, false), title: t("native.island.windowTitle"), frame: false,
     transparent: true, show: false, focusable: false, skipTaskbar: true, hasShadow: false,
@@ -42,11 +49,13 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
     encryption: { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value),
       decrypt: value => safeStorage.decryptStringAsync(value) } });
   const screenContext = createScreenContext({ captureFrame: captureFrame ?? createDesktopScreenCapture({ desktopCapturer, screen,
-    systemPreferences, isSuspended: () => suspended }), onChange: () => controller?.repaint() });
+    systemPreferences, isSuspended: () => suspended,
+    describe: createSurroundings({ desktopCapturer, ignore: () => [win.getTitle()] }) }), embed: embedder ? (texts, signal) => embedder.embed(texts, signal) : undefined,
+    onChange: () => controller?.repaint() });
   const omi = createOmi({ readKey: () => keyStore.read(), writeKey: key => keyStore.write(key), onChange: () => controller?.repaint(), t });
-  controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed, t,
+  controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed, t, computer,
     server: createTalkServer({ request, prefs, serverKey: () => `${dataDir}:island`, starting }) });
-  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi"]);
+  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi", "dictate", "enableComputer"]);
   win.webContents.on("ipc-message", (event, channel, command, ...args) => {
     if (event.senderFrame !== win.webContents.mainFrame || channel !== "island:command" || !commands.has(command)) return;
     Promise.resolve(controller[command](...args)).catch(() => {});
@@ -55,7 +64,7 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   const resume = () => { suspended = false; };
   powerMonitor.on("lock-screen", suspend); powerMonitor.on("suspend", suspend);
   powerMonitor.on("unlock-screen", resume); powerMonitor.on("resume", resume);
-  shortcuts = createIslandShortcuts({ globalShortcut, actions: { voice: () => controller.toggleVoice(), capture: () => controller.toggleCapture(),
+  shortcuts = createIslandShortcuts({ globalShortcut, actions: { voice: () => controller.toggleVoice(), dictate: () => controller.dictate(), capture: () => controller.toggleCapture(),
     stop: () => controller.stop(), expand: () => controller.toggleExpanded() } });
   const reposition = () => { if (latestView) render(latestView); };
   screen.on("display-metrics-changed", reposition); screen.on("display-removed", reposition);

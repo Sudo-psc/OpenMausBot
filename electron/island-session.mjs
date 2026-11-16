@@ -3,11 +3,13 @@ import { prepareIslandMessage } from "./island-context-message.mjs";
 import { englishT, notice, words } from "./island-text.mjs";
 
 const FOLLOW_UP_QUIET_MS = 8_000;
+const NO_COMPUTER = Object.freeze({ now: async () => ({ ready: false, reason: "unsupported", fix: null }), start: async () => ({ ready: false, reason: "unsupported", fix: null }) });
 
 export function createIslandSession({ screenContext, omi, speech, server, request, render, openChat,
-  allowed = () => true, prepareMessage = prepareIslandMessage, t = englishT }) {
+  allowed = () => true, prepareMessage = prepareIslandMessage, t = englishT, computer = NO_COMPUTER, clock = () => new Date() }) {
   let state = "idle", text = "", expanded = false, controller = null, sink = null, chat = null;
   let disposed = false, listenTimer = null, cancelling = false, submittedChat = null, capturePreparation = null, omiError = null;
+  let listening = null, draft = null, drafts = 0, computerStatus = null;
   let attention = false, conversation = false, speaking = null, speechTurn = 0, spokenTurn = 0, lastExchange = null, omiNote = "", saving = false;
   async function abortable(promise, signal) {
     let abort;
@@ -24,7 +26,9 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     const capture = screenContext.snapshot();
     const omiView = omi.snapshot();
     render({ state, text: words(t, text) + (attention ? "\n" + t("native.island.needsYou") : ""), expanded,
-      capture: { enabled: capture.active, lastCapturedAt: capture.lastCapturedAt,
+      mode: conversation ? "conversation" : listening, draft,
+      computer: computerStatus ? { ready: Boolean(computerStatus.ready), reason: computerStatus.reason ?? null, fix: computerStatus.fix ?? null } : null,
+      capture: { enabled: capture.active, lastCapturedAt: capture.lastCapturedAt, app: capture.active ? capture.app ?? "" : "",
         message: capture.error ? t("native.island.captureError") : undefined },
       omi: omiError ? { ...omiView, status: "error", message: words(t, omiError) } : omiView,
       omiNote: words(t, omiNote), canSaveReply: Boolean(lastExchange) && !saving, conversation,
@@ -33,10 +37,14 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
   }
   function stopListening() {
     clearTimeout(listenTimer);
-    const target = sink; sink = null;
+    const target = sink; sink = null; listening = null;
     if (target) speech.stop(target);
   }
-  function endConversation() { conversation = false; speaking = null; spokenTurn = 0; }
+  function endConversation() { conversation = false; speaking = null; spokenTurn = 0; screenContext.setContinuous(false); }
+  async function readComputer(reading) {
+    try { computerStatus = await reading; } catch { computerStatus = { ready: false, reason: "not-running", fix: "start" }; }
+    return computerStatus;
+  }
   function pauseCapture() {
     capturePreparation?.abort();
     screenContext.pause();
@@ -66,7 +74,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
   }
   async function submit(words, spoken) {
     if (disposed || controller || cancelling || typeof words !== "string" || !words.trim()) return;
-    if (!spoken) conversation = false;
+    if (!spoken) endConversation();
     speaking = null; attention = false;
     if (!allowed()) { conversation = false; state = "error"; text = notice("native.island.otherComputer"); repaint(); return; }
     stopListening();
@@ -82,14 +90,16 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       chat = await abortable(server.prepare(), active.signal);
       active.signal.throwIfAborted();
       const omiContext = [await abortable(recalling, active.signal), omi.context()].filter(Boolean).join("\n\n");
-      const frames = screenContext.frames();
+      const [frames, control] = await abortable(Promise.all([screenContext.select(prompt, active.signal), readComputer(computer.now())]), active.signal);
+      const seen = screenContext.snapshot();
+      const surroundings = seen.active ? { localTime: clock().toLocaleString(), computerReady: Boolean(control?.ready), app: seen.app, windows: seen.windows } : undefined;
       const capture = frames.length ? new AbortController() : null;
       capturePreparation = capture;
       let message;
       try {
         const preparationSignal = capture ? AbortSignal.any([active.signal, capture.signal]) : active.signal;
         try {
-          message = await abortable(prepareMessage({ text: prompt, frames, omiContext, request, signal: preparationSignal }), preparationSignal);
+          message = await abortable(prepareMessage({ text: prompt, frames, omiContext, surroundings, request, signal: preparationSignal }), preparationSignal);
         } catch (error) {
           if (!capture?.signal.aborted || active.signal.aborted) throw error;
         }
@@ -128,7 +138,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       }
     }
   }
-  function listen(quietMs) {
+  function listen(quietMs, mode = "conversation") {
     if (speech.busy()) { endConversation(); state = "error"; text = notice("native.island.micBusy"); repaint(); return; }
     let words = "";
     const quiet = () => {
@@ -143,16 +153,17 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
         if (words.trim()) { clearTimeout(listenTimer); listenTimer = setTimeout(quiet, 60_000); }
         repaint();
       },
-      replaced() { if (sink !== target) return; sink = null; clearTimeout(listenTimer); endConversation(); state = "idle"; repaint(); },
+      replaced() { if (sink !== target) return; sink = null; listening = null; clearTimeout(listenTimer); endConversation(); state = "idle"; repaint(); },
       end(info) {
         if (sink !== target) return;
-        sink = null; clearTimeout(listenTimer);
+        sink = null; listening = null; clearTimeout(listenTimer);
         if (info?.code) { endConversation(); state = "error"; text = notice("native.island.listenFailed"); repaint(); }
+        else if (words.trim() && mode === "dictation") { draft = { id: ++drafts, text: words.trim() }; state = "idle"; text = ""; repaint(); }
         else if (words.trim()) void submit(words, true);
         else { endConversation(); state = "idle"; text = ""; repaint(); }
       },
     };
-    sink = target; state = "listening"; text = ""; expanded = true; repaint();
+    sink = target; listening = mode; state = "listening"; text = ""; expanded = true; repaint();
     listenTimer = setTimeout(quiet, quietMs);
     try { speech.start(target, { endpointMs: 1500 }); }
     catch { target.end({ code: 1 }); }
@@ -161,7 +172,19 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     if (disposed || controller || cancelling) return;
     if (sink) { speech.finish(sink); return; }
     conversation = true; speaking = null;
+    screenContext.setContinuous(true);
     listen(60_000);
+  }
+  function dictate() {
+    if (disposed || controller || cancelling) return;
+    if (sink) { speech.finish(sink); return; }
+    endConversation();
+    listen(60_000, "dictation");
+  }
+  async function enableComputer() {
+    if (disposed) return;
+    await readComputer(computer.start());
+    repaint();
   }
   function spoken(turn) {
     if (disposed || !speaking?.done || speaking.turn !== turn) return;
@@ -186,9 +209,9 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     finally { saving = false; repaint(); }
   }
   return {
-    repaint, toggleVoice, spoken, stop, saveToOmi,
+    repaint, toggleVoice, dictate, enableComputer, spoken, stop, saveToOmi,
     send: words => submit(words, false),
-    toggleExpanded() { expanded = !expanded; repaint(); },
+    toggleExpanded() { expanded = !expanded; repaint(); if (expanded) void readComputer(computer.now()).then(repaint); },
     toggleCapture() { if (screenContext.snapshot().active) pauseCapture(); else screenContext.start(); repaint(); },
     pause: cancel,
     openChat() { openChat(chat); },

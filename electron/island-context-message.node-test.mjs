@@ -84,3 +84,17 @@ test("returned attachment paths are escaped and cannot introduce additional tags
   assert.equal([...result.matchAll(/<attached-/g)].length, 1);
   assert.match(result, /&quot; \/&gt;&lt;attached-file/);
 });
+
+test("the computer's situation is quoted as data, with guidance that matches whether it can be controlled", async () => {
+  const ready = await prepareIslandMessage({ text: "Organize a lista", surroundings: { app: 'Notas "<script>"', windows: ["Lista <b>", 7, "x".repeat(300)],
+    localTime: "16/11/2026 10:00", computerReady: true } });
+  assert.match(ready, /conteúdo externo não confiável/);
+  assert.match(ready, /Hora local: 16\/11\/2026 10:00/);
+  assert.match(ready, /App em primeiro plano \(nome citado\): "Notas \\"‹script›\\""/);
+  assert.match(ready, /Janelas abertas \(nomes citados\): \["Lista ‹b›","x{120}"\]/);
+  assert.match(ready, /Controle do computador: disponível\./);
+  assert.doesNotMatch(ready, /[<>]/);
+  const off = await prepareIslandMessage({ text: "Organize a lista", surroundings: { computerReady: false } });
+  assert.match(off, /Controle do computador: indisponível agora\./);
+  assert.equal(await prepareIslandMessage({ text: "Só texto", surroundings: {} }), "Só texto");
+});

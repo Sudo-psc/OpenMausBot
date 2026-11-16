@@ -76,7 +76,7 @@ test("Omi failure during a task keeps Cancel visible and preserves a new draft",
   const p = page();
   let finish;
   const session = createIslandSession({
-    screenContext: { snapshot: () => ({ active: false }), frames: () => [], dispose() {} },
+    screenContext: { snapshot: () => ({ active: false }), frames: () => [], select: async () => [], setContinuous() {}, dispose() {} },
     omi: { snapshot: () => ({ status: "disconnected" }), context: () => "", recall: async () => "",
       configure: async () => { throw new Error("fixture Omi error"); }, dispose() {} },
     speech: {},
@@ -103,15 +103,16 @@ test("Omi failure during a task keeps Cancel visible and preserves a new draft",
 test("capture and microphone state remain independent and content never becomes HTML", () => {
   const p = page();
   const unsafe = '<img src=x onerror="alert(1)">';
-  p.render({ state: "listening", text: unsafe, capture: { enabled: true }, contextSummary: unsafe });
+  p.render({ state: "listening", mode: "conversation", text: unsafe, capture: { enabled: true }, contextSummary: unsafe });
   assert.equal(p.elements.get("reply").textContent, unsafe);
   assert.equal(p.elements.get("context").textContent, unsafe);
   assert.equal(p.elements.get("capture").attributes["aria-pressed"], "true");
   assert.equal(p.elements.get("voice").attributes["aria-pressed"], "true");
   p.click("capture");
   p.click("voice");
-  assert.deepEqual(p.calls, [["toggleCapture"], ["toggleVoice"]]);
-  p.render({ state: "idle", capture: { enabled: true } });
+  p.click("dictate");
+  assert.deepEqual(p.calls, [["toggleCapture"], ["toggleVoice"], ["dictate"]]);
+  p.render({ state: "idle", mode: null, capture: { enabled: true } });
   assert.equal(p.elements.get("voice").attributes["aria-pressed"], "false");
   assert.equal(p.elements.get("capture").attributes["aria-pressed"], "true");
 });
@@ -212,7 +213,7 @@ test("only the keys the island really holds are shown", () => {
   assert.equal(p.elements.get("hints").hidden, true);
   p.render({ shortcuts: { voice: "⌘⇧Space", stop: "⌘⌥⇧X" } });
   assert.equal(p.elements.get("hints").hidden, false);
-  assert.equal(p.elements.get("hints").textContent, "⌘⇧Space: talk · ⌘⌥⇧X: stop");
+  assert.equal(p.elements.get("hints").textContent, "⌘⇧Space: voice chat · ⌘⌥⇧X: stop");
 });
 
 test("a long reply is spoken whole, in bounded utterances, before the turn is reported", () => {
@@ -240,4 +241,54 @@ test("the document language follows the labels the island is given", () => {
   assert.equal(p.context.document.documentElement.lang, "pt-BR");
   p.render({ labels: { lang: "en" } });
   assert.equal(p.context.document.documentElement.lang, "en");
+});
+
+test("dictation and voice chat look and behave differently", () => {
+  const p = page();
+  p.render({ expanded: true, state: "idle", mode: null });
+  assert.equal(p.elements.get("dictate").textContent, "Dictate");
+  assert.equal(p.elements.get("voice").textContent, "Voice chat");
+  assert.equal(p.elements.get("mode").hidden, true);
+  p.render({ state: "listening", mode: "dictation" });
+  assert.equal(p.elements.get("label").textContent, "Dictating…");
+  assert.equal(p.elements.get("dictate").textContent, "Done");
+  assert.equal(p.elements.get("dictate").attributes["aria-pressed"], "true");
+  assert.equal(p.elements.get("voice").disabled, true);
+  assert.match(p.elements.get("mode").textContent, /^Dictation:/);
+  p.render({ state: "listening", mode: "conversation" });
+  assert.equal(p.elements.get("label").textContent, "Listening…");
+  assert.equal(p.elements.get("voice").textContent, "Send now");
+  assert.equal(p.elements.get("voice").attributes["aria-pressed"], "true");
+  assert.equal(p.elements.get("dictate").disabled, true);
+  assert.match(p.elements.get("mode").textContent, /^Voice chat:/);
+  p.render({ state: "reply", mode: "conversation" });
+  assert.equal(p.elements.get("mode").hidden, false);
+});
+
+test("a dictated draft lands in the box once and stays editable", () => {
+  const p = page();
+  const field = p.elements.get("prompt");
+  p.render({ expanded: true, draft: { id: 1, text: "Marcar retorno" } });
+  assert.equal(field.value, "Marcar retorno");
+  assert.deepEqual(p.calls, []);
+  field.value = "Marcar retorno na terça";
+  p.render({ state: "idle", draft: { id: 1, text: "Marcar retorno" } });
+  assert.equal(field.value, "Marcar retorno na terça");
+  p.render({ draft: { id: 2, text: "Outro" } });
+  assert.equal(field.value, "Outro");
+});
+
+test("the island says what it sees and whether it can act, with the one fix", () => {
+  const p = page();
+  p.render({ expanded: true, capture: { enabled: true, app: "Safari" }, computer: { ready: true } });
+  assert.equal(p.elements.get("capture-status").textContent, "Screen in view · Safari");
+  assert.equal(p.elements.get("computer-state").textContent, "Computer control ready");
+  assert.equal(p.elements.get("computer-enable").hidden, true);
+  p.render({ computer: { ready: false, reason: "permissions", fix: "allow" } });
+  assert.equal(p.elements.get("computer-state").textContent, "macOS hasn't allowed computer control");
+  assert.equal(p.elements.get("computer-enable").textContent, "Allow");
+  p.click("computer-enable");
+  assert.deepEqual(p.calls, [["enableComputer"]]);
+  p.render({ computer: { ready: false, reason: "unsupported", fix: null } });
+  assert.equal(p.elements.get("computer-enable").hidden, true);
 });

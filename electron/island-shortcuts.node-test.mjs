@@ -12,10 +12,10 @@ test("each island action gets its own key, named for the platform", () => {
   const globalShortcut = keys(), pressed = [];
   const actions = Object.fromEntries(Object.keys(ISLAND_SHORTCUTS).map(name => [name, () => pressed.push(name)]));
   const shortcuts = createIslandShortcuts({ globalShortcut, actions, platform: "darwin" });
-  assert.deepEqual(shortcuts.labels, { voice: "⌘⇧Space", capture: "⌘⌥⇧S", stop: "⌘⌥⇧X", expand: "⌘⌥⇧I" });
+  assert.deepEqual(shortcuts.labels, { voice: "⌘⇧Space", dictate: "⌘⌥⇧D", capture: "⌘⌥⇧S", stop: "⌘⌥⇧X", expand: "⌘⌥⇧I" });
   for (const press of globalShortcut.held.values()) press();
-  assert.deepEqual(pressed, ["voice", "capture", "stop", "expand"]);
-  assert.equal(new Set(Object.values(ISLAND_SHORTCUTS)).size, 4);
+  assert.deepEqual(pressed, ["voice", "dictate", "capture", "stop", "expand"]);
+  assert.equal(new Set(Object.values(ISLAND_SHORTCUTS)).size, 5);
   assert.equal(shortcutLabel(ISLAND_SHORTCUTS.capture, "win32"), "Ctrl+Alt+Shift+S");
   shortcuts.close();
   assert.equal(globalShortcut.held.size, 0);
@@ -25,18 +25,18 @@ test("a key another application holds is neither advertised nor released", () =>
   const globalShortcut = keys({ taken: [ISLAND_SHORTCUTS.voice] });
   const released = [];
   globalShortcut.unregister = accelerator => released.push(accelerator);
-  const shortcuts = createIslandShortcuts({ globalShortcut, actions: { voice() {}, capture() {}, stop() {}, expand() {} }, platform: "darwin" });
+  const shortcuts = createIslandShortcuts({ globalShortcut, actions: { voice() {}, dictate() {}, capture() {}, stop() {}, expand() {} }, platform: "darwin" });
   assert.equal(shortcuts.labels.voice, undefined);
   assert.equal(shortcuts.labels.stop, "⌘⌥⇧X");
   shortcuts.close(); shortcuts.close();
-  assert.deepEqual(released, [ISLAND_SHORTCUTS.capture, ISLAND_SHORTCUTS.stop, ISLAND_SHORTCUTS.expand]);
+  assert.deepEqual(released, [ISLAND_SHORTCUTS.dictate, ISLAND_SHORTCUTS.capture, ISLAND_SHORTCUTS.stop, ISLAND_SHORTCUTS.expand]);
 });
 
 test("a failing action or a missing shortcut service never throws", async () => {
   const globalShortcut = keys();
   createIslandShortcuts({ globalShortcut, platform: "linux",
-    actions: { voice() { throw new Error("fixture"); }, capture: async () => { throw new Error("fixture"); }, stop() {}, expand() {} } });
+    actions: { voice() { throw new Error("fixture"); }, capture: async () => { throw new Error("fixture"); }, dictate() {}, stop() {}, expand() {} } });
   for (const press of globalShortcut.held.values()) press();
   await new Promise(resolve => setImmediate(resolve));
-  assert.deepEqual(createIslandShortcuts({ globalShortcut: undefined, actions: { voice() {}, capture() {}, stop() {}, expand() {} } }).labels, {});
+  assert.deepEqual(createIslandShortcuts({ globalShortcut: undefined, actions: { voice() {}, dictate() {}, capture() {}, stop() {}, expand() {} } }).labels, {});
 });

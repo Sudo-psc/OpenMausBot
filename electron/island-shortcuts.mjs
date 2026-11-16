@@ -3,6 +3,7 @@ const OTHER_NAMES = Object.freeze({ CommandOrControl: "Ctrl" });
 
 export const ISLAND_SHORTCUTS = Object.freeze({
   voice: "CommandOrControl+Shift+Space",
+  dictate: "CommandOrControl+Alt+Shift+D",
   capture: "CommandOrControl+Alt+Shift+S",
   stop: "CommandOrControl+Alt+Shift+X",
   expand: "CommandOrControl+Alt+Shift+I",

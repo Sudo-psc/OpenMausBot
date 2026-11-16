@@ -17,7 +17,12 @@ const LABEL_KEYS = Object.freeze({
   saveNote: "native.island.saveNote", saveReply: "native.island.saveReply", saveHint: "native.island.saveHint",
   shortcutVoice: "native.island.shortcutVoice", shortcutCapture: "native.island.shortcutCapture",
   shortcutStop: "native.island.shortcutStop", shortcutExpand: "native.island.shortcutExpand",
-  shortcuts: "native.island.shortcuts",
+  shortcuts: "native.island.shortcuts", dictate: "native.island.dictate", stopDictation: "native.island.stopDictation",
+  dictating: "native.island.dictating", dictateHint: "native.island.dictateHint", voiceHint: "native.island.voiceHint",
+  shortcutDictate: "native.island.shortcutDictate", computerReady: "native.island.computerReady",
+  computerOff: "native.island.computerOff", computerPermissions: "native.island.computerPermissions",
+  computerStarting: "native.island.computerStarting", computerUnsupported: "native.island.computerUnsupported",
+  computerEnable: "native.island.computerEnable", computerAllow: "native.island.computerAllow",
 });
 
 export function islandLabels(t = englishT, lang = "en") {
