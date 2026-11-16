@@ -5,12 +5,12 @@ import { createDesktopScreenCapture, createScreenContext, SCREEN_CONTEXT_LIMITS,
 const flush = () => new Promise(resolve => setImmediate(resolve));
 const frame = text => ({ dataUrl: `data:image/jpeg;base64,${Buffer.from(text).toString("base64")}`, displayId: "7" });
 
-function harness(captureFrame) {
+function harness(captureFrame, extra = {}) {
   let time = 1_000;
   let next = 0;
   const timers = new Map();
   const changes = [];
-  const context = createScreenContext({ captureFrame, now: () => time,
+  const context = createScreenContext({ ...extra, captureFrame, now: () => time,
     onChange: state => changes.push(state), setTimer: fn => { timers.set(++next, fn); return next; },
     clearTimer: id => timers.delete(id) });
   return { context, timers, changes, advance: ms => { time += ms; }, async tick() {
@@ -210,4 +210,21 @@ test("the situation is read when a request is sent, and never from a private or 
 
 test("the conversation record is kept for three minutes", () => {
   assert.equal(SCREEN_TIMELINE_LIMITS.ttlMs, 180_000);
+});
+
+test("a selection still choosing when a private app appears returns nothing", async () => {
+  let privateApp = false, calls = 0, release;
+  const waiting = new Promise(resolve => { release = resolve; });
+  const h = harness(async () => privateApp ? { sensitive: true, displayId: "7" } : seen(`shot-${calls}`, calls++ % 2 ? "ffffffffffffffff" : "0000000000000000", `App ${calls}`),
+    { embed: async () => { await waiting; return null; } });
+  h.context.setContinuous(true);
+  h.context.start(); await flush();
+  for (let i = 0; i < 5; i += 1) await h.tick();
+  assert.ok(h.context.frames().length > 3);
+  const choosing = h.context.select("pedido");
+  privateApp = true;
+  await h.tick();
+  assert.equal(h.context.snapshot().hidden, true);
+  release();
+  assert.deepEqual(await choosing, []);
 });

@@ -53,6 +53,7 @@ export function createScreenContext({ captureFrame, onChange = () => {}, now = D
       const frame = await captureFrame();
       if (!active || disposed || started !== generation) return;
       if (frame?.sensitive === true) {
+        generation += 1;
         records = [];
         gate.reset();
         hidden = true;

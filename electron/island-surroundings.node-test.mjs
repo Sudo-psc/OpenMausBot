@@ -54,3 +54,18 @@ test("a private app is flagged and never named, and private window titles are ne
     desktopCapturer: { getSources: async () => ["Inbox", "Banco do Brasil - Extrato", "Minhas SENHAS", "Itaú", "Relatório"].map(name => ({ name })) } });
   assert.deepEqual(await describe(), { windows: ["Inbox", "Relatório"], sensitive: true });
 });
+
+test("a name that could not be read is tried again, so a private app is caught once the command recovers", async () => {
+  let reads = 0;
+  const execFile = (file, args, _options, done) => {
+    if (args[0] === "front") return done(null, "ASN:0x0-0x9:");
+    reads += 1;
+    return reads === 1 ? done(new Error("timed out"), "") : done(null, '"LSDisplayName"="1Password 8"');
+  };
+  const describe = createSurroundings({ platform: "darwin", execFile, desktopCapturer: { getSources: async () => [] } });
+  assert.deepEqual(await describe({ windows: false }), { windows: [], sensitive: false });
+  assert.deepEqual(await describe({ windows: false }), { windows: [], sensitive: true });
+  assert.equal(reads, 2);
+  assert.deepEqual(await describe({ windows: false }), { windows: [], sensitive: true });
+  assert.equal(reads, 2);
+});

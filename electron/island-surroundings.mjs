@@ -14,8 +14,8 @@ function run(execFile, file, args) {
 }
 
 /** macOS: `lsappinfo front` prints the front app's serial ("ASN:0x0-0x1b01b:"), and `lsappinfo info -only name` prints
- * `"LSDisplayName"="Safari"`. Neither needs a privacy permission. The name is asked again only when the serial changes.
- * Other platforms have no such command: null. */
+ * `"LSDisplayName"="Safari"`. Neither needs a privacy permission. A name is kept only once it was read, and asked again
+ * only when the serial changes; one that could not be read is tried again on the next call. Other platforms: null. */
 export function createFrontApp({ platform = process.platform, execFile = nodeExecFile } = {}) {
   let serial = null, name = null;
   return async function front() {
@@ -24,7 +24,9 @@ export function createFrontApp({ platform = process.platform, execFile = nodeExe
     if (!next) { serial = null; name = null; return null; }
     if (next === serial) return name;
     const found = /"(?:LSDisplayName|name)"\s*=\s*"([^"\n]{1,200})"/.exec(await run(execFile, LSAPPINFO, ["info", "-only", "name", next]))?.[1];
-    serial = next; name = found?.trim() || null;
+    const resolved = found?.trim() || null;
+    if (!resolved) { serial = null; name = null; return null; }
+    serial = next; name = resolved;
     return name;
   };
 }
@@ -33,7 +35,7 @@ export const frontApp = options => createFrontApp(options)();
 
 /** What is around the screenshot. `describe()` gives the app in front and the names of open windows, front to back as the
  * system lists them; `describe({ windows: false })` gives only the app, which is what each captured frame needs. A name
- * that looks private (see island-sensitive.mjs) is never listed: a sensitive app in front sets `sensitive`, and a window
+ * that looks private is never listed: a sensitive app in front sets `sensitive`, and a window
  * with such a title is left out. `ignore()` names windows that are this app's own overlays. */
 export function createSurroundings({ desktopCapturer, platform = process.platform, execFile = nodeExecFile, ignore = () => [] }) {
   const front = createFrontApp({ platform, execFile });
