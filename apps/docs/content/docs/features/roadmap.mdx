@@ -1,0 +1,55 @@
+---
+title: Roadmap
+description: Where MausBot is heading, and where the design records for that direction live.
+icon: Map
+---
+
+This page describes intent, not shipped behavior. Nothing here is available in
+a release until it appears in the [changelog](/docs/changelog). The design
+records behind the items below live in this repository as working plans; they
+may change or be dropped.
+
+## Direction: agents with hands on your machine
+
+MausBot already runs agents that talk, use tools, and keep working on a
+schedule. The open design work extends three capabilities that exist today:
+
+- **Computer control** ([give a bot a computer](/docs/computers)) — approval
+  tiers and per-host opt-in are shipped; the recorded gaps are signed Windows
+  installers and host control on Ubuntu, currently held closed under an
+  input-safety review.
+- **Skills** ([skills](/docs/features/skills)) — procedures a bot reuses are
+  shipped; the open question is how much of skill *authoring* (a bot proposing
+  its own procedures after repeated success) should be automatic versus
+  user-approved.
+- **Memory** ([voice and memory](/docs/features/voice-and-memory)) — readable,
+  editable bot memory is shipped; the open work is retrieval quality at scale
+  and what a bot may write back without asking.
+
+## MacaOS (exploration)
+
+A separate native macOS agent concept — continuous screen awareness with local
+embeddings, hotkey chat over the current screen, on-screen annotation as a query
+target, voice-driven execution through a layered action ladder (data,
+scripting, Accessibility, raw input, vision, browser), and learned skills in
+the same `SKILL.md` format MausBot uses. It borrows MausBot's approval-card
+policy for anything irreversible.
+
+It is a plan, not a product: no code, and several licensing and privacy
+decisions are still open. The full record lives at
+`docs/plans/macaos-screen-agent-plan.md` in the repository — that path is in
+the source tree, not on this site. If it ships, it will ship as its own project
+with its own documentation, not as a MausBot feature.
+
+## How to read these records
+
+| Folder | What it holds |
+|---|---|
+| `docs/plans/` | Implementation plans, including unapproved ones |
+| `docs/design/` | Per-issue design notes tied to requirements |
+| `docs/specs/` and `docs/requirements/` | Contracts and acceptance criteria |
+| `docs/verification/` | How a change must be proven before it is called done |
+
+Design records describe possibilities and trade-offs. The pages elsewhere in
+these docs describe what the app actually does today; when the two disagree,
+the feature pages and the changelog are correct.
