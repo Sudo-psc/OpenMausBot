@@ -1,0 +1,20 @@
+{
+  "ok": true,
+  "checks": [
+    "compact and expanded window through real preload",
+    "continuous capture stays local before send",
+    "Omi configure, secure field clearing and refresh",
+    "text sends Omi and image context and displays streamed reply",
+    "dark and light screenshots contain only fixture data",
+    "voice start, finish and transcript submission",
+    "keyboard voice conversation speaks the reply, listens again and stops by key",
+    "a typed note is saved to Omi only on command",
+    "open chat and cancel target only the fixture thread",
+    "pause and disconnect prevent stale context on the next send"
+  ],
+  "messages": 5,
+  "uploads": 4,
+  "limitations": [
+    "Omi, microphone, speech synthesis, global shortcuts, screen and server are simulated; native permissions and a real Omi key are not exercised."
+  ]
+}
