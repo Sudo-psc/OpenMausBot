@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { dynamicIslandHtml, ISLAND_SIZE } from "./island-page.mjs";
+import { islandLabels } from "./island-text.mjs";
 import { createIslandSession } from "./island-session.mjs";
 
-function page({ synth } = {}) {
-  const html = dynamicIslandHtml("AA==");
+function page({ synth, labels } = {}) {
+  const html = dynamicIslandHtml("AA==", labels);
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(([, id]) => [id, {
     value: "", textContent: "", hidden: ["settings", "details"].includes(id), disabled: false, attributes: {}, listeners: {},
     setAttribute(name, value) { this.attributes[name] = value; },
@@ -291,4 +292,13 @@ test("the island says what it sees and whether it can act, with the one fix", ()
   assert.deepEqual(p.calls, [["enableComputer"]]);
   p.render({ computer: { ready: false, reason: "unsupported", fix: null } });
   assert.equal(p.elements.get("computer-enable").hidden, true);
+});
+
+test("labels with markup stay data: they cannot end the page script or add elements", () => {
+  const hostile = 'x</script><img src=x onerror="window.__pwned=1"><!-- \u2028';
+  const html = dynamicIslandHtml("AA==", { ...islandLabels(), idle: hostile });
+  assert.equal(html.split("</script>").length, 2);
+  assert.equal(html.includes("<img src=x"), false);
+  const p = page({ labels: { ...islandLabels(), idle: hostile } });
+  assert.equal(p.elements.get("label").textContent, hostile);
 });

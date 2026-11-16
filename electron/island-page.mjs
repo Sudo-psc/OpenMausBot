@@ -4,6 +4,11 @@ import { islandLabels } from "./island-text.mjs";
 export const ISLAND_SIZE = Object.freeze({ compactWidth: 420, compactHeight: 52, expandedWidth: 480, expandedHeight: 520 });
 
 /** Sandboxed page. The preload exposes only window.island's named commands; context is always rendered as text. */
+/** JSON safe to place inside a <script>: `</script>`, `<!--` and the line separators U+2028/U+2029 cannot end or break the block. */
+function inScript(value) {
+  return JSON.stringify(value).replace(/[<>&\u2028\u2029]/g, character => `\\u${character.charCodeAt(0).toString(16).padStart(4, "0")}`);
+}
+
 export function dynamicIslandHtml(iconBase64 = "", labels = islandLabels()) {
   const dark = skins.skinChrome("midnight"), light = skins.skinChrome("daylight");
   const icon = /^[A-Za-z0-9+/=]*$/.test(iconBase64) ? iconBase64 : "";
@@ -19,7 +24,7 @@ button,input{font:inherit;color:inherit}button{cursor:pointer;border:1px solid v
 #settings{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--edge);padding-top:8px}#settings label{font-size:12px}#key-row{display:flex;gap:8px}#omi-key{min-width:0;flex:1;background:transparent;border:1px solid var(--edge);border-radius:8px;padding:8px}#settings-actions{display:flex;gap:8px}#settings-actions button{font-size:12px;min-height:28px;padding:2px 8px}#close-settings{margin-inline-start:auto}
 @keyframes listen{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){button{transition:none}body.listening #indicator{animation:none}}
 </style></head><body><main id="island"><header id="bar"><button id="brand" type="button" aria-expanded="false" aria-controls="details"><img src="data:image/png;base64,${icon}" alt="" ${icon ? "" : "hidden"}><span id="label">MausBot</span></button><span id="indicator" aria-hidden="true"></span><button id="dictate" type="button"></button><button id="voice" type="button"></button></header><section id="details" hidden><div id="mode" role="status" hidden></div><div id="status"><span id="capture-status"></span><button id="capture" type="button" aria-pressed="false"></button></div><p id="reply" role="status" aria-live="polite" dir="auto"></p><div id="context" dir="auto" hidden></div><div id="hints" hidden></div><form id="composer"><input id="prompt" type="text" maxlength="4000" autocomplete="off" dir="auto"><button id="send" type="submit"></button></form><div id="actions"><button id="cancel" type="button" hidden></button><button id="open-chat" type="button"></button></div><div id="computer-row"><span id="computer-state" role="status"></span><button id="computer-enable" type="button" hidden></button></div><div id="omi-row"><span id="omi-state" role="status"></span><button id="save-omi" type="button" hidden></button><button id="refresh" type="button" hidden></button><button id="configure" type="button" aria-expanded="false" aria-controls="settings"></button></div><section id="settings" hidden><label id="key-label" for="omi-key"></label><div id="key-row"><input id="omi-key" type="password" autocomplete="off" spellcheck="false"><button id="connect" type="button"></button></div><div id="settings-actions"><button id="disconnect" type="button" hidden></button><button id="close-settings" type="button"></button></div></section></section></main><script>
-const DEFAULT_LABELS=${JSON.stringify(labels)}, SIZE=${JSON.stringify(ISLAND_SIZE)};
+const DEFAULT_LABELS=${inScript(labels)}, SIZE=${inScript(ISLAND_SIZE)};
 const element=id=>document.getElementById(id);
 let view={state:"idle",expanded:false,capture:{enabled:false},omi:{status:"disconnected"},shortcuts:{}}, labels=DEFAULT_LABELS;
 const command=(name,...args)=>window.island?.[name]?.(...args);
