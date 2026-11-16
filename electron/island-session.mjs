@@ -10,7 +10,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
   let state = "idle", text = "", expanded = false, controller = null, sink = null, chat = null;
   let disposed = false, listenTimer = null, cancelling = false, submittedChat = null, capturePreparation = null, omiError = null;
   let listening = null, draft = null, drafts = 0, computerStatus = null;
-  let attention = false, conversation = false, speaking = null, speechTurn = 0, spokenTurn = 0, lastExchange = null, omiNote = "", saving = false;
+  let recallEnabled = false, attention = false, conversation = false, speaking = null, speechTurn = 0, spokenTurn = 0, lastExchange = null, omiNote = "", saving = false;
   async function abortable(promise, signal) {
     let abort;
     const interrupted = new Promise((_, reject) => {
@@ -31,7 +31,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       capture: { enabled: capture.active, hidden: Boolean(capture.hidden), lastCapturedAt: capture.lastCapturedAt, app: capture.active && !capture.hidden ? capture.app ?? "" : "",
         message: capture.error ? t("native.island.captureError") : undefined },
       omi: omiError ? { ...omiView, status: "error", message: words(t, omiError) } : omiView,
-      omiNote: words(t, omiNote), canSaveReply: Boolean(lastExchange) && !saving, conversation,
+      omiRecall: recallEnabled, omiNote: words(t, omiNote), canSaveReply: Boolean(lastExchange) && !saving, conversation,
       speech: speaking ? { ...speaking } : null,
       contextSummary: capture.active && !capture.hidden ? t("native.island.contextSummary", { count: capture.frameCount }) : "" });
   }
@@ -87,7 +87,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     state = "thinking"; text = prompt; expanded = true; omiNote = ""; repaint();
     const timeout = setTimeout(() => active.abort(), 180_000); timeout.unref?.();
     try {
-      const recalling = omi.recall(prompt, { signal: active.signal });
+      const recalling = recallEnabled ? omi.recall(prompt, { signal: active.signal }) : Promise.resolve("");
       chat = await abortable(server.prepare(), active.signal);
       active.signal.throwIfAborted();
       const omiContext = [await abortable(recalling, active.signal), omi.context()].filter(Boolean).join("\n\n");
@@ -211,7 +211,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     finally { saving = false; repaint(); }
   }
   return {
-    repaint, toggleVoice, dictate, enableComputer, spoken, stop, saveToOmi,
+    repaint, toggleVoice, dictate, toggleOmiRecall() { recallEnabled = !recallEnabled; repaint(); }, enableComputer, spoken, stop, saveToOmi,
     send: words => submit(words, false),
     toggleExpanded() { expanded = !expanded; repaint(); if (expanded) void readComputer(computer.now()).then(repaint); },
     toggleCapture() { if (screenContext.snapshot().active) pauseCapture(); else screenContext.start(); repaint(); },

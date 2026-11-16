@@ -259,6 +259,7 @@ async function say(h, words) {
 
 test("memories Omi finds for the request come before the cached Omi context", async () => {
   const h = harness();
+  h.session.toggleOmiRecall();
   h.recalled = "Memórias relacionadas";
   await h.session.send("  Qual é o prazo do artigo?  ");
   assert.equal(h.recalls[0][0], "Qual é o prazo do artigo?");
@@ -405,6 +406,7 @@ test("pausing perception while Omi is still searching keeps the screen off the r
   for (const pause of ["toggleCapture", "suspend"]) {
     const searching = deferred();
     const h = harness({ recall: () => searching.promise });
+    h.session.toggleOmiRecall();
     h.session.toggleCapture();
     h.frameList = [{ dataUrl: "fixture-image" }];
     const sending = h.session.send("Explique a tela"); await flush();
@@ -535,5 +537,24 @@ test("a sensitive app in front leaves the request without a situation and the is
   assert.equal(h.views.at(-1).capture.hidden, true);
   assert.equal(h.views.at(-1).capture.app, "");
   assert.equal(h.views.at(-1).contextSummary, "");
+  h.session.dispose();
+});
+
+test("the request is sent to Omi for related memories only after the person turns that on", async () => {
+  const h = harness();
+  h.recalled = "Memórias relacionadas";
+  assert.equal(h.views.at(-1)?.omiRecall ?? false, false);
+  await h.session.send("Qual é o prazo do artigo?");
+  assert.deepEqual(h.recalls, []);
+  assert.equal(h.preparations[0].omiContext, "Omi fixture context");
+  h.session.toggleOmiRecall();
+  assert.equal(h.views.at(-1).omiRecall, true);
+  await h.session.send("E o do resumo?");
+  assert.equal(h.recalls.length, 1);
+  assert.equal(h.recalls[0][0], "E o do resumo?");
+  h.session.toggleOmiRecall();
+  assert.equal(h.views.at(-1).omiRecall, false);
+  await h.session.send("Outro pedido");
+  assert.equal(h.recalls.length, 1);
   h.session.dispose();
 });

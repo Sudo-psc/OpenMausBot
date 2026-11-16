@@ -147,7 +147,10 @@ try {
   assert.equal(key, "omi_dev_fixture_only");
   assert.equal(await evaluate('document.getElementById("omi-key").value'), "");
   await click("refresh");
-  passed("Omi configure, secure field clearing and refresh");
+  assert.equal(await evaluate('document.getElementById("recall").getAttribute("aria-pressed")'), "false");
+  await click("recall");
+  await waitFor('document.getElementById("recall").getAttribute("aria-pressed") === "true"');
+  passed("Omi configure, secure field clearing, refresh and the opt-in search switch");
 
   await send("Explique a tela e considere o contexto do Omi");
   await waitFor('document.getElementById("label").textContent === "Reply"');
@@ -157,7 +160,7 @@ try {
   assert.deepEqual(recalls, ["Explique a tela e considere o contexto do Omi"]);
   assert.match(messages[0].text, /App em primeiro plano \(nome citado\): "Fixture Notes"/);
   assert.match(messages[0].text, /Janelas abertas \(nomes citados\): \["Fixture list"\]/);
-  assert.match(messages[0].text, /Controle do computador: disponível\./);
+  assert.match(messages[0].text, /Controle do computador: disponível quando a pessoa pedir/);
   assert.match(messages[0].text, /<attached-image path="\/fixture\/attachments\/screen-1.png"/);
   assert.equal(uploads.length, 1);
   assert.deepEqual(uploads[0].bytes, PNG);

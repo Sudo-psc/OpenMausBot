@@ -310,3 +310,18 @@ test("the island says when a private app keeps the screen hidden", () => {
   p.render({ capture: { enabled: true, hidden: false, app: "Safari" } });
   assert.equal(p.elements.get("capture-status").textContent, "Screen in view · Safari");
 });
+
+test("searching Omi per request is a visible switch, shown only once Omi is connected", () => {
+  const p = page();
+  p.render({ expanded: true, omi: { status: "disconnected" } });
+  assert.equal(p.elements.get("recall").hidden, true);
+  p.render({ omi: { status: "ready", configured: true }, omiRecall: false });
+  assert.equal(p.elements.get("recall").hidden, false);
+  assert.equal(p.elements.get("recall").textContent, "Search Omi per request");
+  assert.equal(p.elements.get("recall").attributes["aria-pressed"], "false");
+  assert.match(p.elements.get("recall").title, /Off until you turn it on/);
+  p.click("recall");
+  assert.deepEqual(p.calls, [["toggleOmiRecall"]]);
+  p.render({ omiRecall: true });
+  assert.equal(p.elements.get("recall").attributes["aria-pressed"], "true");
+});

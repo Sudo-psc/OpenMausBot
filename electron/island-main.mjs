@@ -57,7 +57,7 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   const omi = createOmi({ readKey: () => keyStore.read(), writeKey: key => keyStore.write(key), onChange: () => controller?.repaint(), t });
   controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed, t, computer,
     server: createTalkServer({ request, prefs, serverKey: () => `${dataDir}:island`, starting }) });
-  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi", "dictate", "enableComputer"]);
+  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi", "dictate", "enableComputer", "toggleOmiRecall"]);
   win.webContents.on("ipc-message", (event, channel, command, ...args) => {
     if (event.senderFrame !== win.webContents.mainFrame || channel !== "island:command" || !commands.has(command)) return;
     Promise.resolve(controller[command](...args)).catch(() => {});
