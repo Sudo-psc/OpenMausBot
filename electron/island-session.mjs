@@ -1,10 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { prepareIslandMessage } from "./island-context-message.mjs";
+import { englishT } from "./island-text.mjs";
 
 const FOLLOW_UP_QUIET_MS = 8_000;
 
 export function createIslandSession({ screenContext, omi, speech, server, request, render, openChat,
-  allowed = () => true, prepareMessage = prepareIslandMessage }) {
+  allowed = () => true, prepareMessage = prepareIslandMessage, t = englishT }) {
   let state = "idle", text = "", expanded = false, controller = null, sink = null, chat = null;
   let disposed = false, listenTimer = null, cancelling = false, submittedChat = null, capturePreparation = null, omiError = null;
   let conversation = false, speaking = null, speechTurn = 0, spokenTurn = 0, lastExchange = null, omiNote = "", saving = false;
@@ -24,11 +25,11 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     const omiView = omi.snapshot();
     render({ state, text, expanded,
       capture: { enabled: capture.active, lastCapturedAt: capture.lastCapturedAt,
-        message: capture.error ? "Não foi possível ler a tela. Verifique a permissão de gravação." : undefined },
+        message: capture.error ? t("native.island.captureError") : undefined },
       omi: omiError ? { ...omiView, status: "error", message: omiError } : omiView,
       omiNote, canSaveReply: Boolean(lastExchange) && !saving, conversation,
       speech: speaking ? { ...speaking } : null,
-      contextSummary: capture.active ? `${capture.frameCount} imagens recentes · enviadas somente com seu pedido` : "" });
+      contextSummary: capture.active ? t("native.island.contextSummary", { count: capture.frameCount }) : "" });
   }
   function stopListening() {
     clearTimeout(listenTimer);
@@ -49,7 +50,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     active?.abort(); stopListening(); endConversation();
     state = "idle"; text = ""; repaint();
     if (!active || !targetChat) return;
-    cancelling = true; state = "sending"; text = "Cancelando tarefa…"; repaint();
+    cancelling = true; state = "sending"; text = t("native.island.cancelling"); repaint();
     try {
       await abortable(server.settleSend?.(), AbortSignal.timeout(10_000));
       const response = await request(`/api/bots/${encodeURIComponent(targetChat.botId)}/interrupt`, {
@@ -60,14 +61,14 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       await response.body?.cancel().catch(() => {});
       state = "idle"; text = "";
     } catch {
-      state = "error"; text = "Não foi possível confirmar o cancelamento. Abra a conversa para verificar a tarefa.";
+      state = "error"; text = t("native.island.cancelUnconfirmed");
     } finally { cancelling = false; repaint(); }
   }
   async function submit(words, spoken) {
     if (disposed || controller || cancelling || typeof words !== "string" || !words.trim()) return;
     if (!spoken) conversation = false;
     speaking = null;
-    if (!allowed()) { conversation = false; state = "error"; text = "Use a ilha com os bots deste computador."; repaint(); return; }
+    if (!allowed()) { conversation = false; state = "error"; text = t("native.island.otherComputer"); repaint(); return; }
     stopListening();
     const active = new AbortController(); controller = active; submittedChat = null;
     const prompt = words.trim().slice(0, 4000);
@@ -113,12 +114,12 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       if (result !== "done") conversation = false;
       if (state === "reply" && reply.trim()) lastExchange = { prompt, reply };
       speaking = spokenTurn === turn && state === "reply" && reply.trim() ? { turn, text: reply, done: true } : null;
-      if (result === "needs-you") text += "\nAbra a conversa para continuar.";
+      if (result === "needs-you") text += "\n" + t("native.island.needsYou");
     } catch {
       if (controller !== active) return;
       endConversation();
       state = "error";
-      text = active.signal.aborted ? "A espera terminou. Abra a conversa para verificar a tarefa." : "Não foi possível enviar. Verifique se o MausBot está pronto e tente novamente.";
+      text = active.signal.aborted ? t("native.island.waitEnded") : t("native.island.sendFailed");
     } finally {
       clearTimeout(timeout);
       if (controller === active) {
@@ -128,7 +129,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     }
   }
   function listen(quietMs) {
-    if (speech.busy()) { endConversation(); state = "error"; text = "O microfone está em uso no MausBot."; repaint(); return; }
+    if (speech.busy()) { endConversation(); state = "error"; text = t("native.island.micBusy"); repaint(); return; }
     let words = "";
     const quiet = () => {
       if (sink !== target) return;
@@ -146,7 +147,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       end(info) {
         if (sink !== target) return;
         sink = null; clearTimeout(listenTimer);
-        if (info?.code) { endConversation(); state = "error"; text = "Não foi possível ouvir. Verifique Microfone e Reconhecimento de Fala nos Ajustes do Sistema."; repaint(); }
+        if (info?.code) { endConversation(); state = "error"; text = t("native.island.listenFailed"); repaint(); }
         else if (words.trim()) void submit(words, true);
         else { endConversation(); state = "idle"; text = ""; repaint(); }
       },
@@ -180,7 +181,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     const typed = typeof note === "string" ? note.trim().slice(0, 4000) : "";
     const content = typed || (lastExchange ? `Pergunta: ${lastExchange.prompt}\nResposta: ${lastExchange.reply}` : "");
     if (!content) return;
-    saving = true; omiNote = "Salvando no Omi…"; repaint();
+    saving = true; omiNote = t("native.island.omiSaving"); repaint();
     try { omiNote = (await omi.remember(content)).message; }
     finally { saving = false; repaint(); }
   }
@@ -197,7 +198,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       omiError = null;
       try { await omi.configure(key); }
       catch {
-        omiError = "Não foi possível conectar o Omi. Verifique a chave e o chaveiro do Mac.";
+        omiError = t("native.island.omiConnectFailed");
         if (!controller && !cancelling) { state = "error"; text = omiError; }
       }
       repaint();
@@ -206,7 +207,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       omiError = null;
       try { await omi.disconnect(); }
       catch {
-        omiError = "Não foi possível remover a chave do Omi.";
+        omiError = t("native.island.omiDisconnectFailed");
         if (!controller && !cancelling) { state = "error"; text = omiError; }
       }
       repaint();

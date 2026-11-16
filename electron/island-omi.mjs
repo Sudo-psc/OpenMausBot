@@ -1,3 +1,4 @@
+import { englishT } from "./island-text.mjs";
 const API = "https://api.omi.me/v1/dev/user/";
 const INTERVAL = 120_000;
 const MAX_CONTEXT = 8_000;
@@ -16,8 +17,8 @@ function text(value) {
 }
 
 export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, onChange = () => {},
-  now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout }) {
-  let state = { status: "disconnected", configured: false, lastUpdatedAt: null, message: "Omi desconectado." };
+  now = Date.now, setTimer = setTimeout, clearTimer = clearTimeout, t = englishT }) {
+  let state = { status: "disconnected", configured: false, lastUpdatedAt: null, message: t("native.island.omiDisconnected") };
   let content = "", generation = 0, disposed = false, timer, active, controller;
   let storage = Promise.resolve(), retryAt = 0;
   const snapshot = () => ({ ...state });
@@ -34,10 +35,10 @@ export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, 
     const response = await fetch(`${API}${resource}`, { ...init, headers: { ...init.headers, Authorization: `Bearer ${key}`, Accept: "application/json" }, signal, redirect: "error" });
     if (!response.ok) {
       await response.body?.cancel().catch(() => {});
-      const error = new Error(response.status === 401 ? "Chave Omi inválida. Reconecte a conta."
-        : response.status === 403 ? "O Omi não liberou este acesso. Confira os escopos e a disponibilidade da conta."
-          : response.status === 429 ? "Limite do Omi atingido. A atualização será retomada automaticamente."
-            : "O Omi está indisponível. Tentaremos novamente.");
+      const error = new Error(response.status === 401 ? t("native.island.omiInvalidKey")
+        : response.status === 403 ? t("native.island.omiForbidden")
+          : response.status === 429 ? t("native.island.omiRateLimit")
+            : t("native.island.omiUnavailable"));
       const header = response.headers.get("Retry-After")?.trim();
       if (response.status === 429 || header) {
         const seconds = header ? Number(header) : NaN;
@@ -91,20 +92,20 @@ export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, 
    * memory, so a repeat is safe. Resolves { ok, message }; never throws and never changes the connection status. */
   async function remember(note) {
     const content = text(note).trim().slice(0, MEMORY_CHARS);
-    if (disposed || !content) return { ok: false, message: "Nada para salvar no Omi." };
-    if (!state.configured) return { ok: false, message: "Conecte o Omi antes de salvar uma memória." };
+    if (disposed || !content) return { ok: false, message: t("native.island.memoryNothing") };
+    if (!state.configured) return { ok: false, message: t("native.island.connectFirst") };
     const token = generation;
     try {
       const key = await usableKey(token);
-      if (!key) return { ok: false, message: "Conecte o Omi antes de salvar uma memória." };
+      if (!key) return { ok: false, message: t("native.island.connectFirst") };
       await bounded(undefined, WRITE_TIMEOUT, limit => call("memories", key, limit, { method: "POST",
         headers: { "Content-Type": "application/json" }, body: JSON.stringify({ content, visibility: "private", tags: ["openmausbot"] }) }));
-      return { ok: true, message: "Memória salva no Omi." };
+      return { ok: true, message: t("native.island.memorySaved") };
     } catch (error) {
-      return { ok: false, message: error?.status === 403 ? "O Omi recusou salvar a memória. Confira se a chave tem o escopo memories:write."
+      return { ok: false, message: error?.status === 403 ? t("native.island.memoryRefused")
         : error?.safe && error.status !== 429 ? error.message
-          : error?.status === 429 ? "Limite do Omi atingido. Tente salvar novamente mais tarde."
-            : "Não foi possível salvar no Omi. Verifique a conexão e tente novamente." };
+          : error?.status === 429 ? t("native.island.memoryRateLimited")
+            : t("native.island.memoryFailed") };
     }
   }
   function refresh() {
@@ -118,9 +119,9 @@ export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, 
         await storage.catch(() => {});
         const key = await readKey();
         if (disposed || token !== generation) return snapshot();
-        if (!key) { content = ""; update({ status: "disconnected", configured: false, lastUpdatedAt: null, message: "Omi desconectado." }); return snapshot(); }
+        if (!key) { content = ""; update({ status: "disconnected", configured: false, lastUpdatedAt: null, message: t("native.island.omiDisconnected") }); return snapshot(); }
         if (!validKey(key)) throw new Error("Invalid stored key");
-        update({ status: "loading", configured: true, message: "Atualizando contexto do Omi…" });
+        update({ status: "loading", configured: true, message: t("native.island.omiLoadingMessage") });
         abortController = new AbortController();
         controller = abortController;
         deadline = setTimer(() => abortController.abort(), 15_000);
@@ -151,10 +152,10 @@ export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, 
         retryAt = now() + Math.max(0, ...delays);
         const truncated = results.some(result => result.status === "fulfilled" && result.value.truncated);
         update({ status: failures.length ? "error" : "ready", lastUpdatedAt: results.some(result => result.status === "fulfilled") ? new Date(now()).toISOString() : null,
-          message: failures.length ? (failures[0].safe ? failures[0].message : "Não foi possível atualizar o Omi. Tentaremos novamente.")
-            : truncated ? "Contexto parcial do Omi atualizado." : "Contexto do Omi atualizado." });
+          message: failures.length ? (failures[0].safe ? failures[0].message : t("native.island.omiRetry"))
+            : truncated ? t("native.island.omiPartial") : t("native.island.omiUpdated") });
       } catch {
-        if (!disposed && token === generation) { content = ""; update({ status: "error", message: "Não foi possível acessar o Omi. Verifique a conexão e o armazenamento seguro." }); }
+        if (!disposed && token === generation) { content = ""; update({ status: "error", message: t("native.island.omiUnreachable") }); }
       } finally {
         if (deadline !== undefined) clearTimer(deadline);
         if (controller === abortController) controller = undefined;
@@ -166,13 +167,13 @@ export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, 
   }
   async function configure(key) {
     if (disposed) return snapshot();
-    if (!validKey(key)) throw new Error("Insira uma chave de desenvolvedor Omi iniciada por omi_dev_.");
+    if (!validKey(key)) throw new Error(t("native.island.omiKeyFormat"));
     const token = ++generation;
     const prior = active;
     stop(); content = ""; retryAt = 0;
-    update({ status: "loading", configured: false, lastUpdatedAt: null, message: "Salvando conexão Omi…" });
+    update({ status: "loading", configured: false, lastUpdatedAt: null, message: t("native.island.omiConnecting") });
     try { await persist(key); } catch {
-      if (!disposed && token === generation) update({ status: "error", message: "Não foi possível salvar a chave no armazenamento seguro." });
+      if (!disposed && token === generation) update({ status: "error", message: t("native.island.omiKeyWriteFailed") });
       return snapshot();
     }
     if (disposed || token !== generation) return snapshot();
@@ -184,9 +185,9 @@ export function createOmiContext({ fetch = globalThis.fetch, readKey, writeKey, 
     if (disposed) return snapshot();
     const token = ++generation;
     stop(); content = ""; retryAt = 0;
-    update({ status: "disconnected", configured: false, lastUpdatedAt: null, message: "Omi desconectado." });
+    update({ status: "disconnected", configured: false, lastUpdatedAt: null, message: t("native.island.omiDisconnected") });
     try { await persist(null); } catch {
-      if (!disposed && token === generation) update({ status: "error", message: "Não foi possível remover a chave. Tente desconectar novamente." });
+      if (!disposed && token === generation) update({ status: "error", message: t("native.island.omiKeyRemoveFailed") });
     }
     return snapshot();
   }

@@ -10,7 +10,7 @@ import { startCua, stopCua, registerCuaIpc, requestComputerUse, setCuaStateListe
 import { createAndroidDeviceController } from "./android-device.mjs";
 import { finishSpeech, speechBusy, startSpeech, stopSpeech } from "./speech.mjs";
 import { installTalk, isTalkPanel } from "./talk-main.mjs";
-import { disposeIsland, islandWindow, startIsland } from "./island-bootstrap.mjs";
+import { disposeIsland, islandWindow, relabelIsland, startIsland } from "./island-bootstrap.mjs";
 import { openBlankTerminal } from "./terminal-launch.mjs";
 import { linuxDisablesGpu, SOFTWARE_RENDERING_ARG } from "./linux-gpu.mjs";
 import { pasteMenuItem } from "./paste-menu-item.mjs";
@@ -1522,7 +1522,7 @@ function persistEnvironments(next) {
   try { railChanged(); } catch {}
 }
 
-function applyNativeLanguage() { relabelDesktop({ menu: refreshApplicationMenu, trays: [desktopTray, lendingTray], window: mainWindow, title: mainWindowTitle, badge: applyUnreadBadge }); }
+function applyNativeLanguage() { relabelDesktop({ menu: refreshApplicationMenu, trays: [desktopTray, lendingTray], window: mainWindow, title: mainWindowTitle, badge: applyUnreadBadge }); relabelIsland(); }
 
 async function workspaceMenuAction(action) {
   try { await action(); } catch (error) {
@@ -2955,7 +2955,7 @@ app.whenReady().then(async () => {
     onLanguage: language => { if (nativeText.set(language)) { applyNativeLanguage(); talk.relabel(); } }, onShown: (language, sender) => { if (sender === mainWindow?.webContents && nativeText.follow(language)) { applyNativeLanguage(); talk.relabel(); } },
     page: event => senderIsLocal(event) ? "local" : cloudPageAsking(event) ?? (workspaceSenderAllowed(event, mainWindow?.webContents, environmentsState, rendererOrigin()) ? "server" : null) });
   talk.start({ globalShortcut, screen, prefs: desktopPrefs, remote: () => Boolean(desktopRemoteAccess), away: () => homeWindow.current().kind !== "computer", starting: () => !serverReady, localRequest: localServerRequest, dataDir: () => runningDataDir });
-  startIsland({ BrowserWindow, screen, desktopCapturer, systemPreferences, safeStorage, nativeImage, iconPath: APP_ICON, powerMonitor, globalShortcut, speech: { start: startSpeech, stop: stopSpeech, finish: finishSpeech, busy: speechBusy }, request: (route, init) => app.isPackaged ? localServerRequest(route, init) : fetch(new URL(route, DEV_URL), init), prefs: desktopPrefs, dataDir: desktopDataDir(), starting: () => !serverReady, allowed: () => !desktopRemoteAccess && homeWindow.current().kind === "computer", openChat: chat => chat ? queueChatLink(`openmausbot://thread/${encodeURIComponent(chat.threadId)}?bot=${encodeURIComponent(chat.botId)}`) : revealForLink() });
+  startIsland({ t: nativeT, intlTag: () => nativeText.intlTag(), BrowserWindow, screen, desktopCapturer, systemPreferences, safeStorage, nativeImage, iconPath: APP_ICON, powerMonitor, globalShortcut, speech: { start: startSpeech, stop: stopSpeech, finish: finishSpeech, busy: speechBusy }, request: (route, init) => app.isPackaged ? localServerRequest(route, init) : fetch(new URL(route, DEV_URL), init), prefs: desktopPrefs, dataDir: desktopDataDir(), starting: () => !serverReady, allowed: () => !desktopRemoteAccess && homeWindow.current().kind === "computer", openChat: chat => chat ? queueChatLink(`openmausbot://thread/${encodeURIComponent(chat.threadId)}?bot=${encodeURIComponent(chat.botId)}`) : revealForLink() });
   // Before the window, so the harness has the CUA descriptor on first render.
   cuaReady =
     !desktopRemoteAccess && (process.platform === "darwin" || process.platform === "linux" || process.platform === "win32")

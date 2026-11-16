@@ -5,6 +5,7 @@ import { createDesktopScreenCapture, createScreenContext } from "./island-screen
 import { createOmiContext } from "./island-omi.mjs";
 import { createIslandKeyStore } from "./island-key-store.mjs";
 import { createIslandSession } from "./island-session.mjs";
+import { englishT, islandLabels } from "./island-text.mjs";
 import { createIslandShortcuts } from "./island-shortcuts.mjs";
 import { createTalkServer } from "./talk-server.mjs";
 
@@ -16,9 +17,9 @@ export function islandBounds(display, expanded) {
 
 export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, systemPreferences, safeStorage,
   nativeImage, iconPath, powerMonitor, speech, request, prefs, dataDir, openChat, allowed, starting,
-  globalShortcut, createOmi = createOmiContext, captureFrame, keyStore: suppliedKeyStore }) {
+  globalShortcut, createOmi = createOmiContext, captureFrame, keyStore: suppliedKeyStore, t = englishT, intlTag = () => "en" }) {
   const display = screen.getPrimaryDisplay();
-  const win = new BrowserWindow({ ...islandBounds(display, false), title: "Ilha MausBot", frame: false,
+  const win = new BrowserWindow({ ...islandBounds(display, false), title: t("native.island.windowTitle"), frame: false,
     transparent: true, show: false, focusable: false, skipTaskbar: true, hasShadow: false,
     resizable: false, movable: false, minimizable: false, maximizable: false, fullscreenable: false,
     acceptFirstMouse: true, webPreferences: { contextIsolation: true, sandbox: true, nodeIntegration: false,
@@ -35,15 +36,15 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
     if (!loaded || closed) return;
     win.setFocusable(Boolean(view.expanded));
     win.setBounds(islandBounds(screen.getPrimaryDisplay(), view.expanded));
-    void win.webContents.executeJavaScript(`render(${JSON.stringify({ ...view, shortcuts: shortcuts?.labels ?? {} })})`).catch(() => {});
+    void win.webContents.executeJavaScript(`render(${JSON.stringify({ ...view, labels: islandLabels(t, intlTag()), shortcuts: shortcuts?.labels ?? {} })})`).catch(() => {});
   }
   const keyStore = suppliedKeyStore ?? createIslandKeyStore({ file: path.join(dataDir, "island-omi-key.enc"),
     encryption: { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value),
       decrypt: value => safeStorage.decryptStringAsync(value) } });
   const screenContext = createScreenContext({ captureFrame: captureFrame ?? createDesktopScreenCapture({ desktopCapturer, screen,
     systemPreferences, isSuspended: () => suspended }), onChange: () => controller?.repaint() });
-  const omi = createOmi({ readKey: () => keyStore.read(), writeKey: key => keyStore.write(key), onChange: () => controller?.repaint() });
-  controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed,
+  const omi = createOmi({ readKey: () => keyStore.read(), writeKey: key => keyStore.write(key), onChange: () => controller?.repaint(), t });
+  controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed, t,
     server: createTalkServer({ request, prefs, serverKey: () => `${dataDir}:island`, starting }) });
   const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi"]);
   win.webContents.on("ipc-message", (event, channel, command, ...args) => {
@@ -64,7 +65,7 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   });
   const icon = nativeImage.createFromPath(iconPath);
   const png = icon.isEmpty() ? "" : icon.resize({ width: 48, height: 48 }).toPNG().toString("base64");
-  void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(dynamicIslandHtml(png))}`);
+  void win.loadURL(`data:text/html;charset=utf-8,${encodeURIComponent(dynamicIslandHtml(png, islandLabels(t, intlTag())))}`);
   function dispose() {
     if (closed) return; closed = true;
     controller.dispose();

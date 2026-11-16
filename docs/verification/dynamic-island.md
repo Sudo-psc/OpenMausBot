@@ -145,6 +145,13 @@ Não verificado nesta rodada: voz real do macOS, microfone, atalhos globais
 reais, captura real da tela e conta Omi real, incluindo a busca
 `memories/vector/search` e a gravação com escopo `memories:write`.
 
+### Idioma da ilha
+
+Os textos da ilha vêm de `native.island.*` em `src/locales/en.json` e seguem o
+idioma escolhido no app; sem tradução, aparecem em inglês. `pt-br.json` traz a
+versão atual. O texto enviado ao modelo (instruções sobre imagens e contexto
+Omi) e o conteúdo salvo no Omi (`Pergunta:` / `Resposta:`) não são traduzidos.
+
 ## Limites conhecidos
 
 A voz depende das vozes instaladas no sistema. Sem voz disponível, a resposta

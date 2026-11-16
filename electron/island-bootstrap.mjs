@@ -14,6 +14,11 @@ export function startIsland(deps) {
   return island;
 }
 
+/** Repaints the island in the current language after the app's language changes. */
+export function relabelIsland() {
+  island?.controller.repaint();
+}
+
 export function disposeIsland() {
   island?.dispose();
   island = null;

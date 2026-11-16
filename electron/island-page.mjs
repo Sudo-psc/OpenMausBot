@@ -1,23 +1,13 @@
 import skins from "./skin-overlay.cjs";
-
-export const ISLAND_LABELS = Object.freeze({
-  idle: "Pronto para ajudar", listening: "Ouvindo…", thinking: "Trabalhando…", reply: "Resposta", error: "Não foi possível concluir",
-  expand: "Expandir ilha", collapse: "Recolher ilha", send: "Enviar", prompt: "O que você quer fazer?", voice: "Falar", stopVoice: "Finalizar fala",
-  captureOn: "Pausar percepção", captureOff: "Ativar percepção", captureActive: "Tela acompanhada", capturePaused: "Tela pausada",
-  omi: "Omi", omiReady: "Conectado", omiOff: "Não conectado", omiLoading: "Atualizando…", omiError: "Não foi possível atualizar",
-  omiKey: "Chave de desenvolvedor do Omi", connect: "Conectar Omi", disconnect: "Desconectar", refresh: "Atualizar", configure: "Configurar Omi",
-  cancel: "Cancelar tarefa", openChat: "Abrir conversa", closeSettings: "Fechar configuração", context: "Contexto recente",
-  speaking: "Falando…", endConversation: "Encerrar conversa", saveNote: "Salvar nota", saveReply: "Salvar resposta", saveHint: "Salvar no Omi como memória",
-  shortcutVoice: "falar", shortcutCapture: "tela", shortcutStop: "parar", shortcutExpand: "abrir", shortcuts: "Atalhos",
-});
+import { islandLabels } from "./island-text.mjs";
 
 export const ISLAND_SIZE = Object.freeze({ compactWidth: 380, compactHeight: 52, expandedWidth: 480, expandedHeight: 456 });
 
 /** Sandboxed page. The preload exposes only window.island's named commands; context is always rendered as text. */
-export function dynamicIslandHtml(iconBase64 = "") {
+export function dynamicIslandHtml(iconBase64 = "", labels = islandLabels()) {
   const dark = skins.skinChrome("midnight"), light = skins.skinChrome("daylight");
   const icon = /^[A-Za-z0-9+/=]*$/.test(iconBase64) ? iconBase64 : "";
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>Ilha MausBot</title><style>
+  return `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="default-src 'none'; img-src data:; style-src 'unsafe-inline'; script-src 'unsafe-inline'; base-uri 'none'; form-action 'none'"><title>MausBot</title><style>
 :root{color-scheme:dark;--panel:${dark.color};--ink:${dark.symbolColor};--edge:color-mix(in srgb,var(--ink) 20%,transparent);--hover:color-mix(in srgb,var(--ink) 10%,transparent);--focus:var(--ink)}
 body.light{color-scheme:light;--panel:${light.color};--ink:${light.symbolColor}}
 *{box-sizing:border-box}html,body{margin:0;background:transparent;color:var(--ink);font:13px/18px -apple-system,BlinkMacSystemFont,system-ui,sans-serif;overflow:hidden}
@@ -29,7 +19,7 @@ button,input{font:inherit;color:inherit}button{cursor:pointer;border:1px solid v
 #settings{display:flex;flex-direction:column;gap:8px;border-top:1px solid var(--edge);padding-top:8px}#settings label{font-size:12px}#key-row{display:flex;gap:8px}#omi-key{min-width:0;flex:1;background:transparent;border:1px solid var(--edge);border-radius:8px;padding:8px}#settings-actions{display:flex;gap:8px}#settings-actions button{font-size:12px;min-height:28px;padding:2px 8px}#close-settings{margin-inline-start:auto}
 @keyframes listen{50%{opacity:.35}}@media(prefers-reduced-motion:reduce){button{transition:none}body.listening #indicator{animation:none}}
 </style></head><body><main id="island"><header id="bar"><button id="brand" type="button" aria-expanded="false" aria-controls="details"><img src="data:image/png;base64,${icon}" alt="" ${icon ? "" : "hidden"}><span id="label">MausBot</span></button><span id="indicator" aria-hidden="true"></span><button id="voice" type="button"></button></header><section id="details" hidden><div id="status"><span id="capture-status"></span><button id="capture" type="button" aria-pressed="false"></button></div><p id="reply" role="status" aria-live="polite" dir="auto"></p><div id="context" dir="auto" hidden></div><div id="hints" hidden></div><form id="composer"><input id="prompt" type="text" maxlength="4000" autocomplete="off" dir="auto"><button id="send" type="submit"></button></form><div id="actions"><button id="cancel" type="button" hidden></button><button id="open-chat" type="button"></button></div><div id="omi-row"><span id="omi-state" role="status"></span><button id="save-omi" type="button" hidden></button><button id="refresh" type="button" hidden></button><button id="configure" type="button" aria-expanded="false" aria-controls="settings"></button></div><section id="settings" hidden><label id="key-label" for="omi-key"></label><div id="key-row"><input id="omi-key" type="password" autocomplete="off" spellcheck="false"><button id="connect" type="button"></button></div><div id="settings-actions"><button id="disconnect" type="button" hidden></button><button id="close-settings" type="button"></button></div></section></section></main><script>
-const DEFAULT_LABELS=${JSON.stringify(ISLAND_LABELS)}, SIZE=${JSON.stringify(ISLAND_SIZE)};
+const DEFAULT_LABELS=${JSON.stringify(labels)}, SIZE=${JSON.stringify(ISLAND_SIZE)};
 const element=id=>document.getElementById(id);
 let view={state:"idle",expanded:false,capture:{enabled:false},omi:{status:"disconnected"},shortcuts:{}}, labels=DEFAULT_LABELS;
 const command=(name,...args)=>window.island?.[name]?.(...args);
@@ -43,7 +33,7 @@ function pieces(text){const out=[];let rest=text;while(rest.length>MAX_UTTERANCE
 function settle(turn){if(tts.turn!==turn||tts.pending>0||!tts.done||tts.reported)return;tts.reported=true;command("spoken",turn);}
 function say(chunk,turn){
   if(!synth||typeof SpeechSynthesisUtterance!=="function")return;
-  const utterance=new SpeechSynthesisUtterance(chunk);utterance.lang=document.documentElement.lang;
+  const utterance=new SpeechSynthesisUtterance(chunk);utterance.lang=labels.lang;
   let closed=false;tts.pending+=1;
   const close=()=>{if(closed)return;closed=true;clearTimeout(guard);if(tts.turn!==turn)return;tts.pending-=1;settle(turn);};
   const guard=setTimeout(close,5000+chunk.length*150);
@@ -85,7 +75,7 @@ function render(next){
   element("omi-state").textContent=String(view.omiNote||"").slice(0,200)||labels.omi+" · "+omiLabel;
   element("omi-state").title=view.omi.message||omiLabel;
   element("save-omi").hidden=!connected;saveLabel();
-  const keys=view.shortcuts,hints=[["voice",labels.shortcutVoice],["capture",labels.shortcutCapture],["stop",labels.shortcutStop],["expand",labels.shortcutExpand]].filter(([name])=>typeof keys[name]==="string"&&keys[name]).map(([name,label])=>String(keys[name]).slice(0,40)+" "+label);
+  const keys=view.shortcuts,hints=[["voice",labels.shortcutVoice],["capture",labels.shortcutCapture],["stop",labels.shortcutStop],["expand",labels.shortcutExpand]].filter(([name])=>typeof keys[name]==="string"&&keys[name]).map(([name,label])=>String(keys[name]).slice(0,40)+": "+label);
   element("hints").textContent=hints.join(" · ");element("hints").hidden=!hints.length;element("hints").setAttribute("aria-label",labels.shortcuts);
   element("refresh").textContent=labels.refresh;element("refresh").hidden=!connected;element("refresh").disabled=view.omi.status==="loading";
   element("configure").textContent=labels.configure;
