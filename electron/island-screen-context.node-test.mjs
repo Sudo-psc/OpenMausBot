@@ -97,9 +97,13 @@ test("desktop capture follows the pointer display and requests no audio", async 
       { display_id: "7", thumbnail: { isEmpty: () => false, toJPEG: quality => { assert.equal(quality, 55); return Buffer.from("right"); },
         resize: size => { assert.deepEqual(size, { width: 9, height: 8, quality: "good" }); return { toBitmap: () => Buffer.alloc(9 * 8 * 4, 200) }; } } },
     ]; } },
-    describe: async () => ({ app: "Notas", windows: ["Lista de compras"] }),
+    describe: async options => { assert.deepEqual(options, { windows: false }); return { app: "Notas", windows: [] }; },
   });
-  assert.deepEqual(await capture(), { ...frame("right"), signature: "0000000000000000", app: "Notas", windows: ["Lista de compras"] });
+  assert.deepEqual(await capture(), { ...frame("right"), signature: "0000000000000000", app: "Notas", windows: [] });
+  const guarded = createDesktopScreenCapture({ platform: "linux", screen: { getCursorScreenPoint: () => ({}), getDisplayNearestPoint: () => ({ id: 7 }) },
+    desktopCapturer: { getSources: () => assert.fail("a private app must not be captured") },
+    describe: async () => ({ app: "", windows: [], sensitive: true }) });
+  assert.deepEqual(await guarded(), { sensitive: true, displayId: "7" });
   assert.deepEqual(options, { types: ["screen"], thumbnailSize: { width: 960, height: 600 }, fetchWindowIcons: false });
 });
 
@@ -167,4 +171,43 @@ test("selection returns nothing once perception is paused, even mid-choice", asy
   release();
   assert.deepEqual(await choosing, []);
   assert.deepEqual(await context.select("pedido"), []);
+});
+
+test("a sensitive app in front hides the screen and drops what was kept, until it leaves", async () => {
+  let privateApp = false, calls = 0;
+  const h = harness(async () => privateApp ? { sensitive: true, displayId: "7" } : seen(`shot-${calls++}`, "ffffffffffffffff", `App ${calls}`));
+  h.context.start(); await flush();
+  await h.tick();
+  assert.equal(h.context.frames().length >= 1, true);
+  privateApp = true;
+  await h.tick();
+  assert.deepEqual(h.context.frames(), []);
+  assert.equal(h.context.snapshot().hidden, true);
+  assert.equal(await h.context.situation(), null);
+  privateApp = false;
+  await h.tick();
+  assert.equal(h.context.snapshot().hidden, false);
+  assert.equal(h.context.frames().length, 1);
+});
+
+test("the situation is read when a request is sent, and never from a private or paused screen", async () => {
+  let reads = 0, around = { app: "Safari", windows: ["Inbox"], sensitive: false };
+  let time = 1_000;
+  const context = createScreenContext({ now: () => time, setTimer: () => 1, clearTimer: () => {}, captureFrame: async () => frame("one"),
+    surroundings: async () => { reads += 1; return around; } });
+  assert.equal(await context.situation(), null);
+  context.start(); await flush();
+  assert.equal(reads, 0);
+  assert.deepEqual(await context.situation(), { app: "Safari", windows: ["Inbox"] });
+  assert.equal(reads, 1);
+  around = { app: "1Password", windows: [], sensitive: true };
+  assert.equal(await context.situation(), null);
+  around = { app: "Safari", windows: ["Inbox"], sensitive: false };
+  const pending = context.situation();
+  context.pause();
+  assert.equal(await pending, null);
+});
+
+test("the conversation record is kept for three minutes", () => {
+  assert.equal(SCREEN_TIMELINE_LIMITS.ttlMs, 180_000);
 });

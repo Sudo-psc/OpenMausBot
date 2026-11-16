@@ -9804,6 +9804,7 @@
   "native.island.computerUnsupported": "Controle do computador indisponível aqui",
   "native.island.computerEnable": "Ativar",
   "native.island.computerAllow": "Permitir",
+  "native.island.captureHidden": "Tela oculta: app privado na frente",
   "native.talk.listening": "Ouvindo…",
   "native.talk.sending": "Enviando para o MausBot…",
   "native.talk.thinking": "O MausBot está pensando…",

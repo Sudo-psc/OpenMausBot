@@ -9868,6 +9868,7 @@
   "native.island.computerUnsupported": "Computer control isn't available here",
   "native.island.computerEnable": "Turn on",
   "native.island.computerAllow": "Allow",
+  "native.island.captureHidden": "Screen hidden: private app in front",
   "native.talk.listening": "Listening…",
   "native.talk.sending": "Sending to MausBot…",
   "native.talk.thinking": "MausBot is thinking…",

@@ -78,7 +78,7 @@ function render(next){
   const computer=view.computer||{},computerLabel=computer.ready?labels.computerReady:computer.reason==="permissions"?labels.computerPermissions:computer.reason==="starting"?labels.computerStarting:computer.reason==="unsupported"?labels.computerUnsupported:labels.computerOff;
   element("computer-state").textContent=view.computer?computerLabel:"";element("computer-row").hidden=!view.computer;
   element("computer-enable").textContent=computer.fix==="allow"?labels.computerAllow:labels.computerEnable;element("computer-enable").hidden=!computer.fix;
-  element("capture-status").textContent=view.capture.message||(view.capture.enabled?labels.captureActive+(view.capture.app?" · "+String(view.capture.app).slice(0,60):""):labels.capturePaused);
+  element("capture-status").textContent=view.capture.message||(view.capture.enabled&&view.capture.hidden?labels.captureHidden:view.capture.enabled?labels.captureActive+(view.capture.app?" · "+String(view.capture.app).slice(0,60):""):labels.capturePaused);
   element("capture").textContent=view.capture.enabled?labels.captureOn:labels.captureOff;
   element("capture").setAttribute("aria-pressed",String(Boolean(view.capture.enabled)));
   element("prompt").setAttribute("aria-label",labels.prompt);element("prompt").placeholder=labels.prompt;

@@ -28,12 +28,12 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     render({ state, text: words(t, text) + (attention ? "\n" + t("native.island.needsYou") : ""), expanded,
       mode: conversation ? "conversation" : listening, draft,
       computer: computerStatus ? { ready: Boolean(computerStatus.ready), reason: computerStatus.reason ?? null, fix: computerStatus.fix ?? null } : null,
-      capture: { enabled: capture.active, lastCapturedAt: capture.lastCapturedAt, app: capture.active ? capture.app ?? "" : "",
+      capture: { enabled: capture.active, hidden: Boolean(capture.hidden), lastCapturedAt: capture.lastCapturedAt, app: capture.active && !capture.hidden ? capture.app ?? "" : "",
         message: capture.error ? t("native.island.captureError") : undefined },
       omi: omiError ? { ...omiView, status: "error", message: words(t, omiError) } : omiView,
       omiNote: words(t, omiNote), canSaveReply: Boolean(lastExchange) && !saving, conversation,
       speech: speaking ? { ...speaking } : null,
-      contextSummary: capture.active ? t("native.island.contextSummary", { count: capture.frameCount }) : "" });
+      contextSummary: capture.active && !capture.hidden ? t("native.island.contextSummary", { count: capture.frameCount }) : "" });
   }
   function stopListening() {
     clearTimeout(listenTimer);
@@ -92,9 +92,9 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       active.signal.throwIfAborted();
       const omiContext = [await abortable(recalling, active.signal), omi.context()].filter(Boolean).join("\n\n");
       const control = await abortable(readComputer(computer.now()), active.signal);
+      const seen = await abortable(screenContext.situation(), active.signal);
       const frames = await abortable(screenContext.select(prompt, active.signal), active.signal);
-      const seen = screenContext.snapshot();
-      const surroundings = seen.active ? { localTime: clock().toLocaleString(), computerReady: Boolean(control?.ready), app: seen.app, windows: seen.windows } : undefined;
+      const surroundings = seen ? { localTime: clock().toLocaleString(), computerReady: Boolean(control?.ready), app: seen.app, windows: seen.windows } : undefined;
       const capture = frames.length ? new AbortController() : null;
       capturePreparation = capture;
       let message;

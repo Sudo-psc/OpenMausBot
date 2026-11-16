@@ -77,7 +77,7 @@ test("Omi failure during a task keeps Cancel visible and preserves a new draft",
   const p = page();
   let finish;
   const session = createIslandSession({
-    screenContext: { snapshot: () => ({ active: false }), frames: () => [], select: async () => [], setContinuous() {}, dispose() {} },
+    screenContext: { snapshot: () => ({ active: false }), frames: () => [], situation: async () => null, select: async () => [], setContinuous() {}, dispose() {} },
     omi: { snapshot: () => ({ status: "disconnected" }), context: () => "", recall: async () => "",
       configure: async () => { throw new Error("fixture Omi error"); }, dispose() {} },
     speech: {},
@@ -301,4 +301,12 @@ test("labels with markup stay data: they cannot end the page script or add eleme
   assert.equal(html.includes("<img src=x"), false);
   const p = page({ labels: { ...islandLabels(), idle: hostile } });
   assert.equal(p.elements.get("label").textContent, hostile);
+});
+
+test("the island says when a private app keeps the screen hidden", () => {
+  const p = page();
+  p.render({ expanded: true, capture: { enabled: true, hidden: true, app: "" } });
+  assert.equal(p.elements.get("capture-status").textContent, "Screen hidden: private app in front");
+  p.render({ capture: { enabled: true, hidden: false, app: "Safari" } });
+  assert.equal(p.elements.get("capture-status").textContent, "Screen in view · Safari");
 });
