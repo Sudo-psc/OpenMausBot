@@ -54,6 +54,7 @@ function settings(open){element("settings").hidden=!open;element("configure").se
 function render(next){
   view={...view,...next,capture:{...(next.capture||{})},omi:{...(next.omi||{})},shortcuts:{...(next.shortcuts||view.shortcuts||{})}};
   labels={...DEFAULT_LABELS,...next.labels};
+  document.documentElement.lang=labels.lang;
   document.body.className=[view.theme==="light"?"light":"dark",view.expanded?"expanded":"",view.capture.enabled?"capturing":"",view.state==="listening"?"listening":""].join(" ");
   element("details").hidden=!view.expanded;
   element("brand").setAttribute("aria-expanded",String(Boolean(view.expanded)));

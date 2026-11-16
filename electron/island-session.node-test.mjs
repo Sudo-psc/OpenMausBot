@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test, { mock } from "node:test";
 import { createIslandSession } from "./island-session.mjs";
 import { prepareIslandMessage } from "./island-context-message.mjs";
+import { englishT } from "./island-text.mjs";
+import { createRequire } from "node:module";
 
 const CHAT = { botId: "bot-1", threadId: "thread-1" };
 const flush = () => new Promise(resolve => setImmediate(resolve));
@@ -28,6 +30,7 @@ function harness(options = {}) {
     } },
     request: async (...args) => { h.requests.push(args); return options.request ? options.request(...args) : { ok: true }; },
     render: view => h.views.push(view), openChat: chat => h.opened.push(chat), allowed: options.allowed ?? (() => true),
+    t: options.t,
     prepareMessage: options.prepareMessage ?? (async input => { h.preparations.push(input); return "prepared: " + input.text; }),
   });
   return h;
@@ -406,4 +409,28 @@ test("pausing perception while Omi is still searching keeps the screen off the r
     assert.equal(h.asks.length, 1);
     h.session.dispose();
   }
+});
+
+test("a message on screen is translated again when the language changes", async () => {
+  const pt = createRequire(import.meta.url)("./native-text.cjs").createNativeText({ saved: "pt-br" }).t;
+  let language = englishT;
+  const h = harness({ t: (key, params) => language(key, params), ask: async () => { throw new Error("offline"); } });
+  await h.session.send("Pergunta");
+  assert.equal(h.views.at(-1).text, "Couldn't send. Check that MausBot is ready and try again.");
+  language = pt;
+  h.session.repaint();
+  assert.equal(h.views.at(-1).text, "Não foi possível enviar. Verifique se o MausBot está pronto e tente novamente.");
+  h.session.dispose();
+});
+
+test("a reply is never translated, and the needs-you hint is shown in the current language", async () => {
+  const pt = createRequire(import.meta.url)("./native-text.cjs").createNativeText({ saved: "pt-br" }).t;
+  let language = englishT;
+  const h = harness({ t: (key, params) => language(key, params), ask: async input => { input.onUpdate({ kind: "reply", text: "Pronto." }); return "needs-you"; } });
+  await h.session.send("Oi");
+  assert.equal(h.views.at(-1).text, "Pronto.\nOpen the chat to continue.");
+  language = pt;
+  h.session.repaint();
+  assert.equal(h.views.at(-1).text, "Pronto.\nAbra a conversa para continuar.");
+  h.session.dispose();
 });

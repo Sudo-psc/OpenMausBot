@@ -233,3 +233,11 @@ test("speech uses the language the island was given, not a fixed one", () => {
   p.render({ labels: { lang: "pt-BR" }, state: "reply", speech: { turn: 5, text: "Outra resposta.", done: true } });
   assert.equal(spoken.at(-1).lang, "pt-BR");
 });
+
+test("the document language follows the labels the island is given", () => {
+  const p = page();
+  p.render({ labels: { lang: "pt-BR" } });
+  assert.equal(p.context.document.documentElement.lang, "pt-BR");
+  p.render({ labels: { lang: "en" } });
+  assert.equal(p.context.document.documentElement.lang, "en");
+});
