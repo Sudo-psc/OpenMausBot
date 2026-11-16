@@ -40,7 +40,8 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     const target = sink; sink = null; listening = null;
     if (target) speech.stop(target);
   }
-  function endConversation() { conversation = false; speaking = null; spokenTurn = 0; screenContext.setContinuous(false); }
+  function leaveConversation() { conversation = false; screenContext.setContinuous(false); }
+  function endConversation() { leaveConversation(); speaking = null; spokenTurn = 0; }
   async function readComputer(reading) {
     try { computerStatus = await reading; } catch { computerStatus = { ready: false, reason: "not-running", fix: "start" }; }
     return computerStatus;
@@ -76,7 +77,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
     if (disposed || controller || cancelling || typeof words !== "string" || !words.trim()) return;
     if (!spoken) endConversation();
     speaking = null; attention = false;
-    if (!allowed()) { conversation = false; state = "error"; text = notice("native.island.otherComputer"); repaint(); return; }
+    if (!allowed()) { leaveConversation(); state = "error"; text = notice("native.island.otherComputer"); repaint(); return; }
     stopListening();
     const active = new AbortController(); controller = active; submittedChat = null;
     const prompt = words.trim().slice(0, 4000);
@@ -90,7 +91,8 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       chat = await abortable(server.prepare(), active.signal);
       active.signal.throwIfAborted();
       const omiContext = [await abortable(recalling, active.signal), omi.context()].filter(Boolean).join("\n\n");
-      const [frames, control] = await abortable(Promise.all([screenContext.select(prompt, active.signal), readComputer(computer.now())]), active.signal);
+      const control = await abortable(readComputer(computer.now()), active.signal);
+      const frames = await abortable(screenContext.select(prompt, active.signal), active.signal);
       const seen = screenContext.snapshot();
       const surroundings = seen.active ? { localTime: clock().toLocaleString(), computerReady: Boolean(control?.ready), app: seen.app, windows: seen.windows } : undefined;
       const capture = frames.length ? new AbortController() : null;
@@ -121,7 +123,7 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
         } });
       if (controller !== active || active.signal.aborted) return;
       state = result === "failed" ? "error" : "reply";
-      if (result !== "done") conversation = false;
+      if (result !== "done") leaveConversation();
       if (state === "reply" && reply.trim()) lastExchange = { prompt, reply };
       speaking = spokenTurn === turn && state === "reply" && reply.trim() ? { turn, text: reply, done: true } : null;
       if (result === "needs-you") attention = true;

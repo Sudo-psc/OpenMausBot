@@ -34,7 +34,7 @@ function harness(options = {}) {
     request: async (...args) => { h.requests.push(args); return options.request ? options.request(...args) : { ok: true }; },
     render: view => h.views.push(view), openChat: chat => h.opened.push(chat), allowed: options.allowed ?? (() => true),
     t: options.t, clock: () => ({ toLocaleString: () => "16/11/2026 10:00" }),
-    computer: { now: async () => h.computerNow, start: async () => { h.enabled += 1; h.computerNow = { ready: true, reason: null, fix: null }; return h.computerNow; } },
+    computer: { now: options.computerNow ?? (async () => h.computerNow), start: async () => { h.enabled += 1; h.computerNow = { ready: true, reason: null, fix: null }; return h.computerNow; } },
     prepareMessage: options.prepareMessage ?? (async input => { h.preparations.push(input); return "prepared: " + input.text; }),
   });
   return h;
@@ -488,5 +488,39 @@ test("a request carries the app in front, open windows, the time and whether the
   await h.session.enableComputer();
   assert.equal(h.enabled, 1);
   assert.equal(h.views.at(-1).computer.ready, true);
+  h.session.dispose();
+});
+
+test("pausing perception while computer control is still being read keeps the screen off the request", async () => {
+  for (const pause of ["toggleCapture", "suspend"]) {
+    const reading = deferred();
+    const h = harness({ computerNow: () => reading.promise });
+    h.session.toggleCapture();
+    h.frameList = [{ dataUrl: "fixture-image" }];
+    const sending = h.session.send("Explique a tela"); await flush();
+    h.session[pause]();
+    reading.resolve({ ready: true, reason: null, fix: null }); await sending;
+    assert.deepEqual(h.preparations.map(input => input.frames), [[]]);
+    assert.equal(h.preparations[0].surroundings, undefined);
+    h.session.dispose();
+  }
+});
+
+test("every way out of a voice chat returns to the short screen record", async () => {
+  for (const result of ["failed", "needs-you"]) {
+    const h = harness({ ask: async input => { input.onUpdate({ kind: "reply", text: "Parcial" }); return result; } });
+    h.session.toggleVoice();
+    assert.equal(h.continuous.at(-1), true);
+    await say(h, "Pedido");
+    assert.equal(h.continuous.at(-1), false);
+    h.session.dispose();
+  }
+  let allowed = true;
+  const h = harness({ allowed: () => allowed });
+  h.session.toggleVoice();
+  allowed = false;
+  await say(h, "Pedido");
+  assert.equal(h.continuous.at(-1), false);
+  assert.equal(h.views.at(-1).conversation, false);
   h.session.dispose();
 });
