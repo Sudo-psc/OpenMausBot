@@ -214,3 +214,16 @@ test("only the keys the island really holds are shown", () => {
   assert.equal(p.elements.get("hints").hidden, false);
   assert.equal(p.elements.get("hints").textContent, "⌘⇧Space falar · ⌘⌥⇧X parar");
 });
+
+test("a long reply is spoken whole, in bounded utterances, before the turn is reported", () => {
+  const { p, spoken } = voice();
+  const text = "palavra ".repeat(376).trim();
+  p.render({ state: "reply", speech: { turn: 4, text, done: true } });
+  assert.equal(spoken.length, 2);
+  assert.ok(spoken.every(item => item.text.length <= 2000));
+  assert.equal(spoken.map(item => item.text).join(" "), text);
+  spoken[0].onend();
+  assert.deepEqual(p.calls, []);
+  spoken[1].onend();
+  assert.deepEqual(p.calls, [["spoken", 4]]);
+});

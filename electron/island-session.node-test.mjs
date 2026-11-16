@@ -16,7 +16,7 @@ function harness(options = {}) {
       frames: () => h.frameList, start: () => { h.active = true; }, pause: () => { h.active = false; h.frameList = []; },
       dispose: () => { h.active = false; h.frameList = []; h.disposed += 1; } },
     omi: { snapshot: () => ({ status: "ready" }), context: () => h.omiContext,
-      recall: async (query, opts) => { h.recalls.push([query, opts]); return h.recalled; },
+      recall: options.recall ?? (async (query, opts) => { h.recalls.push([query, opts]); return h.recalled; }),
       remember: options.remember ?? (async note => { h.remembered.push(note); return { ok: true, message: "Memória salva no Omi." }; }),
       configure: options.configure ?? (async () => {}), disconnect: options.disconnect ?? (async () => {}), refresh: async () => {}, dispose: () => { h.disposed += 1; } },
     speech: { busy: () => h.busy, start: (sink, opts) => { h.sink = sink; h.starts.push(opts); },
@@ -391,4 +391,19 @@ test("a reply that arrives after the screen locks is shown but not spoken", asyn
   assert.equal(h.views.at(-1).speech, null);
   assert.equal(h.starts.length, 1);
   h.session.dispose();
+});
+
+test("pausing perception while Omi is still searching keeps the screen off the request", async () => {
+  for (const pause of ["toggleCapture", "suspend"]) {
+    const searching = deferred();
+    const h = harness({ recall: () => searching.promise });
+    h.session.toggleCapture();
+    h.frameList = [{ dataUrl: "fixture-image" }];
+    const sending = h.session.send("Explique a tela"); await flush();
+    h.session[pause]();
+    searching.resolve("Memórias relacionadas"); await sending;
+    assert.deepEqual(h.preparations.map(input => input.frames), [[]]);
+    assert.equal(h.asks.length, 1);
+    h.session.dispose();
+  }
 });

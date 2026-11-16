@@ -1,4 +1,3 @@
-// Wires the cloud entry outside main.mjs, so the entry file stays a readable size.
 import { createCloudEntry } from "./cloud-entry.mjs";
 
 /** The desktop app's cloud entry: reveal its window, or open the cloud page once the workspace menu can act. */

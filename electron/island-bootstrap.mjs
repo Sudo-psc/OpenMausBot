@@ -1,4 +1,3 @@
-// Builds the island window outside main.mjs, so the entry file stays a readable size.
 import { createDynamicIsland } from "./island-main.mjs";
 
 let island = null;

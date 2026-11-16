@@ -35,14 +35,15 @@ let view={state:"idle",expanded:false,capture:{enabled:false},omi:{status:"disco
 const command=(name,...args)=>window.island?.[name]?.(...args);
 const busy=()=>["thinking","sending","still-working"].includes(view.state);
 const talking=()=>Boolean(view.speech)||view.state==="listening"||Boolean(view.conversation);
-const synth=window.speechSynthesis;
+const synth=window.speechSynthesis,MAX_UTTERANCE=2000;
 let tts={turn:0,source:"",offset:0,pending:0,done:false,reported:false};
 const plain=text=>text.replace(/\\[([^\\]]*)\\]\\([^)]*\\)/g,"$1").replace(/[*_#\x60>|]/g,"").trim();
 function sentenceEnd(text,done){if(done)return text.length;let end=0;for(const match of text.matchAll(/[.!?…](?=\\s)|\\n/g))end=match.index+1;return end;}
+function pieces(text){const out=[];let rest=text;while(rest.length>MAX_UTTERANCE){const space=rest.lastIndexOf(" ",MAX_UTTERANCE);const cut=space>0?space:MAX_UTTERANCE;out.push(rest.slice(0,cut));rest=rest.slice(cut).trim();}if(rest)out.push(rest);return out;}
 function settle(turn){if(tts.turn!==turn||tts.pending>0||!tts.done||tts.reported)return;tts.reported=true;command("spoken",turn);}
 function say(chunk,turn){
   if(!synth||typeof SpeechSynthesisUtterance!=="function")return;
-  const utterance=new SpeechSynthesisUtterance(chunk.slice(0,2000));utterance.lang=document.documentElement.lang;
+  const utterance=new SpeechSynthesisUtterance(chunk);utterance.lang=document.documentElement.lang;
   let closed=false;tts.pending+=1;
   const close=()=>{if(closed)return;closed=true;clearTimeout(guard);if(tts.turn!==turn)return;tts.pending-=1;settle(turn);};
   const guard=setTimeout(close,5000+chunk.length*150);
@@ -55,7 +56,7 @@ function speak(speech){
   if(!text.startsWith(tts.source.slice(0,tts.offset)))tts.offset=0;
   tts.source=text;tts.done=Boolean(speech.done);
   const end=sentenceEnd(text,tts.done);
-  if(end>tts.offset){const chunk=plain(text.slice(tts.offset,end));tts.offset=end;if(chunk)say(chunk,speech.turn);}
+  if(end>tts.offset){const chunk=plain(text.slice(tts.offset,end));tts.offset=end;for(const part of pieces(chunk))say(part,speech.turn);}
   settle(speech.turn);
 }
 function saveLabel(){const save=element("save-omi");const note=element("prompt").value.trim();save.textContent=note?labels.saveNote:labels.saveReply;save.title=labels.saveHint;save.disabled=busy()||(!note&&!view.canSaveReply);}

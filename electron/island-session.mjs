@@ -80,8 +80,8 @@ export function createIslandSession({ screenContext, omi, speech, server, reques
       const recalling = omi.recall(prompt, { signal: active.signal });
       chat = await abortable(server.prepare(), active.signal);
       active.signal.throwIfAborted();
-      const frames = screenContext.frames();
       const omiContext = [await abortable(recalling, active.signal), omi.context()].filter(Boolean).join("\n\n");
+      const frames = screenContext.frames();
       const capture = frames.length ? new AbortController() : null;
       capturePreparation = capture;
       let message;
