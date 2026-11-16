@@ -1,0 +1,352 @@
+# Subtest: text-only command requires no upload and keeps the person's request first
+ok 1 - text-only command requires no upload and keeps the person's request first
+# Subtest: only last three frames upload raw image bytes to the official route and serialize as attachments
+ok 2 - only last three frames upload raw image bytes to the official route and serialize as attachments
+# Subtest: Omi text is bounded and cannot inject attachment or context boundary tags
+ok 3 - Omi text is bounded and cannot inject attachment or context boundary tags
+# Subtest: invalid or oversized frames fail before any image is uploaded
+ok 4 - invalid or oversized frames fail before any image is uploaded
+# Subtest: aborts before and after upload prevent a message and subsequent uploads
+ok 5 - aborts before and after upload prevent a message and subsequent uploads
+# Subtest: upload refusals and malformed metadata fail without leaking server messages
+ok 6 - upload refusals and malformed metadata fail without leaking server messages
+# Subtest: returned attachment paths are escaped and cannot introduce additional tags
+ok 7 - returned attachment paths are escaped and cannot introduce additional tags
+# Subtest: the key is OS-encrypted in an atomic private file and never stored in plaintext
+ok 8 - the key is OS-encrypted in an atomic private file and never stored in plaintext
+# Subtest: an unavailable keychain cannot create or replace a plaintext file
+ok 9 - an unavailable keychain cannot create or replace a plaintext file
+# Subtest: disconnect deletes without requiring encryption, including after queued writes
+ok 10 - disconnect deletes without requiring encryption, including after queued writes
+# Subtest: replacement is serialized and reads wait for the writes already queued
+ok 11 - replacement is serialized and reads wait for the writes already queued
+# Subtest: encryption failure preserves the prior key and the queue recovers
+ok 12 - encryption failure preserves the prior key and the queue recovers
+# Subtest: the store rejects symlinks, oversized records and invalid decrypted values
+ok 13 - the store rejects symlinks, oversized records and invalid decrypted values
+# Subtest: invalid keys are rejected without disclosure, and no plaintext encryption fallback exists
+ok 14 - invalid keys are rejected without disclosure, and no plaintext encryption fallback exists
+# Subtest: fetches bounded context from official endpoints and never exposes the key
+ok 15 - fetches bounded context from official endpoints and never exposes the key
+# Subtest: coalesces refreshes and ignores late results after disconnect
+ok 16 - coalesces refreshes and ignores late results after disconnect
+# Subtest: respects Retry-After even when refresh is manually requested
+ok 17 - respects Retry-After even when refresh is manually requested
+# Subtest: keeps available conversations when memory access is denied and redacts provider errors
+ok 18 - keeps available conversations when memory access is denied and redacts provider errors
+# Subtest: configuration validates key kind and persists before requesting data
+ok 19 - configuration validates key kind and persists before requesting data
+# Subtest: dispose prevents deferred reads from fetching or repopulating context
+ok 20 - dispose prevents deferred reads from fetching or repopulating context
+# Subtest: strips control characters including DEL, skips blank items, and flags X-Omi-List-Truncated
+ok 21 - strips control characters including DEL, skips blank items, and flags X-Omi-List-Truncated
+# Subtest: aborts in-flight fetch after 15s deadline and schedules 120s retry
+ok 22 - aborts in-flight fetch after 15s deadline and schedules 120s retry
+# Subtest: disconnect wins race against pending configure persistence
+ok 23 - disconnect wins race against pending configure persistence
+# Subtest: clamps oversized Retry-After, ignores blank Retry-After, and honors 503 Retry-After
+ok 24 - clamps oversized Retry-After, ignores blank Retry-After, and honors 503 Retry-After
+# Subtest: configure aborts prior refresh and coalesces a refresh triggered while persisting
+ok 25 - configure aborts prior refresh and coalesces a refresh triggered while persisting
+# Subtest: recall searches Omi with the bounded request and quotes only memory text
+ok 26 - recall searches Omi with the bounded request and quotes only memory text
+# Subtest: a refused, slow or rate-limited recall returns nothing and keeps the connection status
+ok 27 - a refused, slow or rate-limited recall returns nothing and keeps the connection status
+# Subtest: remember writes one private memory on command and explains a refusal
+ok 28 - remember writes one private memory on command and explains a refusal
+# Subtest: compact island expands with accessible controls and respects localized labels
+ok 29 - compact island expands with accessible controls and respects localized labels
+# Subtest: prompt submit trims, bounds and sends once, and blocks duplicate submission while busy
+ok 30 - prompt submit trims, bounds and sends once, and blocks duplicate submission while busy
+# Subtest: Omi key goes only to named command and is immediately erased
+ok 31 - Omi key goes only to named command and is immediately erased
+# Subtest: Omi failure during a task keeps Cancel visible and preserves a new draft
+ok 32 - Omi failure during a task keeps Cancel visible and preserves a new draft
+# Subtest: capture and microphone state remain independent and content never becomes HTML
+ok 33 - capture and microphone state remain independent and content never becomes HTML
+# Subtest: Escape clears credentials before collapsing, and errors keep reconnect reachable
+ok 34 - Escape clears credentials before collapsing, and errors keep reconnect reachable
+# Subtest: page has no network access or HTML interpolation of context and guards icon markup
+ok 35 - page has no network access or HTML interpolation of context and guards icon markup
+# Subtest: a streamed reply is spoken sentence by sentence and reported once when it ends
+ok 36 - a streamed reply is spoken sentence by sentence and reported once when it ends
+# Subtest: speech stops when the island withdraws it, and a silent engine still reports the turn
+ok 37 - speech stops when the island withdraws it, and a silent engine still reports the turn
+# Subtest: the conversation can be ended from the island and with Escape
+ok 38 - the conversation can be ended from the island and with Escape
+# Subtest: saving to Omi needs a connection and either a typed note or an answer
+ok 39 - saving to Omi needs a connection and either a typed note or an answer
+# Subtest: only the keys the island really holds are shown
+ok 40 - only the keys the island really holds are shown
+# Subtest: capture is opt-in, bounded, deduplicated and entirely cleared on pause
+ok 41 - capture is opt-in, bounded, deduplicated and entirely cleared on pause
+# Subtest: expired images cannot be attached and callers cannot mutate retained records
+ok 42 - expired images cannot be attached and callers cannot mutate retained records
+# Subtest: pausing an in-flight capture discards it, restart never overlaps captures
+ok 43 - pausing an in-flight capture discards it, restart never overlaps captures
+# Subtest: capture errors and oversized images erase old context without leaking exception contents
+ok 44 - capture errors and oversized images erase old context without leaking exception contents
+# Subtest: desktop capture follows the pointer display and requests no audio
+ok 45 - desktop capture follows the pointer display and requests no audio
+# Subtest: denied permission and suspension prevent a desktop capture
+ok 46 - denied permission and suspension prevent a desktop capture
+# Subtest: a missing display never silently captures another monitor
+ok 47 - a missing display never silently captures another monitor
+# Subtest: explicit send combines fresh screen and Omi context, follows the answer and opens its chat
+ok 48 - explicit send combines fresh screen and Omi context, follows the answer and opens its chat
+# Subtest: speech is opt-in, finishes on command and sends only its own final transcript
+ok 49 - speech is opt-in, finishes on command and sends only its own final transcript
+# Subtest: busy voice is preserved and forbidden local tasks are not sent
+ok 50 - busy voice is preserved and forbidden local tasks are not sent
+# Subtest: cancellation during preparation does not send or interrupt an unrelated earlier chat
+ok 51 - cancellation during preparation does not send or interrupt an unrelated earlier chat
+# Subtest: cancel calls the real interrupt route, waits before new sends and reports refusal
+ok 52 - cancel calls the real interrupt route, waits before new sends and reports refusal
+# Subtest: screen lock clears captures and microphone without forgetting the running task
+ok 53 - screen lock clears captures and microphone without forgetting the running task
+# Subtest: toggleCapture revokes pending screen uploads without cancelling the text request
+ok 54 - toggleCapture revokes pending screen uploads without cancelling the text request
+# Subtest: suspend revokes pending screen uploads without cancelling the text request
+ok 55 - suspend revokes pending screen uploads without cancelling the text request
+# Subtest: pausing capture after message acceptance keeps the running task
+ok 56 - pausing capture after message acceptance keeps the running task
+# Subtest: cancel waits for message acceptance before interrupting and keeps new sends blocked
+ok 57 - cancel waits for message acceptance before interrupting and keeps new sends blocked
+# (node:8641) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: uncertain message acceptance is not reported as a confirmed cancellation
+ok 58 - uncertain message acceptance is not reported as a confirmed cancellation
+# Subtest: timeout while preparing restores an actionable error instead of remaining busy
+ok 59 - timeout while preparing restores an actionable error instead of remaining busy
+# Subtest: other UI errors during preparation cannot replace the person's prompt
+ok 60 - other UI errors during preparation cannot replace the person's prompt
+# Subtest: a failed configureOmi keeps an active task cancellable
+ok 61 - a failed configureOmi keeps an active task cancellable
+# Subtest: a failed disconnectOmi keeps an active task cancellable
+ok 62 - a failed disconnectOmi keeps an active task cancellable
+# Subtest: dispose releases capture, Omi and microphone, and ignores late transcripts
+ok 63 - dispose releases capture, Omi and microphone, and ignores late transcripts
+# Subtest: memories Omi finds for the request come before the cached Omi context
+ok 64 - memories Omi finds for the request come before the cached Omi context
+# Subtest: a voice turn is spoken, then the island listens again until the person stays quiet
+ok 65 - a voice turn is spoken, then the island listens again until the person stays quiet
+# Subtest: a streamed voice reply is handed to speech before the turn completes
+ok 66 - a streamed voice reply is handed to speech before the turn completes
+# Subtest: a typed request is never spoken and does not open the microphone
+ok 67 - a typed request is never spoken and does not open the microphone
+# Subtest: the voice key interrupts a spoken reply and listens at once
+ok 68 - the voice key interrupts a spoken reply and listens at once
+# Subtest: stop ends listening, speaking and the conversation, and cancels a running task
+ok 69 - stop ends listening, speaking and the conversation, and cancels a running task
+# Subtest: a failed or waiting voice turn does not reopen the microphone
+ok 70 - a failed or waiting voice turn does not reopen the microphone
+# Subtest: saving to Omi sends the typed note, or the last exchange, only on command
+ok 71 - saving to Omi sends the typed note, or the last exchange, only on command
+# Subtest: a reply that arrives after the screen locks is shown but not spoken
+ok 72 - a reply that arrives after the screen locks is shown but not spoken
+# Subtest: each island action gets its own key, named for the platform
+ok 73 - each island action gets its own key, named for the platform
+# Subtest: a key another application holds is neither advertised nor released
+ok 74 - a key another application holds is neither advertised nor released
+# Subtest: a failing action or a missing shortcut service never throws
+ok 75 - a failing action or a missing shortcut service never throws
+# Subtest: every list of the app's windows leaves the talk box and dynamic island out
+ok 76 - every list of the app's windows leaves the talk box and dynamic island out
+# Subtest: main hands the talk wiring its speech sinks, this computer's own server and window, and closes it first on quit
+ok 77 - main hands the talk wiring its speech sinks, this computer's own server and window, and closes it first on quit
+# Subtest: main tells the talk wiring when home changes and which skin the app painted, and counts a talk ask as busy for a quiet update
+ok 78 - main tells the talk wiring when home changes and which skin the app painted, and counts a talk ask as busy for a quiet update
+# Subtest: the talk bridge keys stay off other servers' pages; a call can be reported from My Cloud's page
+ok 79 - the talk bridge keys stay off other servers' pages; a call can be reported from My Cloud's page
+# Subtest: every microphone channel answers only this computer's page; a call can be reported from My Cloud's page too
+ok 80 - every microphone channel answers only this computer's page; a call can be reported from My Cloud's page too
+# Subtest: a page's speech stop and finish name that page's own window, so they touch only the session it started
+ok 81 - a page's speech stop and finish name that page's own window, so they touch only the session it started
+# Subtest: the shortcut is offered only with Apple speech, on a desktop that is not a remote client of another computer
+ok 82 - the shortcut is offered only with Apple speech, on a desktop that is not a remote client of another computer
+# Subtest: before the shortcut is set up its setting says unavailable; afterwards a change passes on only what it understands
+ok 83 - before the shortcut is set up its setting says unavailable; afterwards a change passes on only what it understands
+# Subtest: a press listens until the key's modifiers are let go, and asks this computer's own server; in development, the dev server's proxy
+ok 84 - a press listens until the key's modifiers are let go, and asks this computer's own server; in development, the dev server's proxy
+# Subtest: a call or composer dictation holding the microphone keeps a press from listening
+ok 85 - a call or composer dictation holding the microphone keeps a press from listening
+# Subtest: a talk shortcut that cannot be set up is logged, says unavailable, and startup goes on
+ok 86 - a talk shortcut that cannot be set up is logged, says unavailable, and startup goes on
+# Subtest: a press, an open or a dismiss that throws is logged, never thrown at Electron
+ok 87 - a press, an open or a dismiss that throws is logged, never thrown at Electron
+# Subtest: clicking the box opens its chat by a link with both ids escaped, or else just shows MausBot
+ok 88 - clicking the box opens its chat by a link with both ids escaped, or else just shows MausBot
+# Subtest: while home is My Cloud or this computer's copy is frozen the shortcut is unavailable and the key free; home here again takes it back
+ok 89 - while home is My Cloud or this computer's copy is frozen the shortcut is unavailable and the key free; home here again takes it back
+# Subtest: a press while this computer's server is still starting says so
+ok 90 - a press while this computer's server is still starting says so
+# Subtest: the box takes the light or dark of the skin the app painted last, before or after it opens
+ok 91 - the box takes the light or dark of the skin the app painted last, before or after it opens
+# Subtest: busy while a talk ask is under way, never before the shortcut is set up
+ok 92 - busy while a talk ask is under way, never before the shortcut is set up
+# Subtest: quitting while listening logs a failure to stop speech and still lets the key go
+ok 93 - quitting while listening logs a failure to stop speech and still lets the key go
+# Subtest: talkPanelBounds sits the box bottom-centre of the work area, clamped
+ok 94 - talkPanelBounds sits the box bottom-centre of the work area, clamped
+# Subtest: the constants are frozen and carry the spec's values
+ok 95 - the constants are frozen and carry the spec's values
+# Subtest: the box is a non-activating panel on every Space, shown without focus on the display under the pointer
+ok 96 - the box is a non-activating panel on every Space, shown without focus on the display under the pointer
+# Subtest: later renders resize without showing again, and use only the latest view
+ok 97 - later renders resize without showing again, and use only the latest view
+# Subtest: the page shows reply text as plain text, never HTML
+ok 98 - the page shows reply text as plain text, never HTML
+# Subtest: the page's bridge is open and dismiss, and they count only from this box
+ok 99 - the page's bridge is open and dismiss, and they count only from this box
+# Subtest: navigation and new windows are refused
+ok 100 - navigation and new windows are refused
+# (node:8663) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: close fades, then destroys; the next render makes a new box; hovered follows the pointer
+ok 101 - close fades, then destroys; the next render makes a new box; hovered follows the pointer
+# Subtest: close destroys at once when the page never loaded
+ok 102 - close destroys at once when the page never loaded
+# Subtest: isTalkPanel tells the box from app windows
+ok 103 - isTalkPanel tells the box from app windows
+# Subtest: a rejected page load is swallowed, not an unhandled rejection
+ok 104 - a rejected page load is swallowed, not an unhandled rejection
+# Subtest: an unreadable icon creates no window
+ok 105 - an unreadable icon creates no window
+# Subtest: the box's security invariants are pinned
+ok 106 - the box's security invariants are pinned
+# Subtest: a box destroyed outside close() is forgotten, so the next render makes a new one
+ok 107 - a box destroyed outside close() is forgotten, so the next render makes a new one
+# Subtest: a reply of wide characters is cut at whole lines, so the card's bottom edge stays inside the tallest box
+ok 108 - a reply of wide characters is cut at whole lines, so the card's bottom edge stays inside the tallest box
+# Subtest: replyPreview stays within the limit on pathological input
+ok 109 - replyPreview stays within the limit on pathological input
+# Subtest: the box stays on the display it opened on while it is up; the next box opens under the pointer
+ok 110 - the box stays on the display it opened on while it is up; the next box opens under the pointer
+# Subtest: the mascot is inlined at 56 px, twice its 28 px size, never the full-size app icon
+ok 111 - the mascot is inlined at 56 px, twice its 28 px size, never the full-size app icon
+# Subtest: the box takes the app's skin, light or dark, over macOS's appearance, and repaints when it changes
+ok 112 - the box takes the app's skin, light or dark, over macOS's appearance, and repaints when it changes
+# Subtest: a box that fails to place itself is not an unhandled rejection
+ok 113 - a box that fails to place itself is not an unhandled rejection
+# Subtest: an open box follows the current language without translating a reply or caching labels in its page
+ok 114 - an open box follows the current language without translating a reply or caching labels in its page
+# Subtest: an aborted stream preserves the pending POST receipt for Stop to await
+ok 115 - an aborted stream preserves the pending POST receipt for Stop to await
+# Subtest: abort before the hello is processed never posts, even when hello was queued
+ok 116 - abort before the hello is processed never posts, even when hello was queued
+# Subtest: a lost POST receipt remains uncertain after stream cancellation
+ok 117 - a lost POST receipt remains uncertain after stream cancellation
+# Subtest: findMausBot picks this computer's MausBot, else the Chief of Staff
+ok 118 - findMausBot picks this computer's MausBot, else the Chief of Staff
+# Subtest: prepare reuses the saved Quick asks chat while MausBot still has it
+ok 119 - prepare reuses the saved Quick asks chat while MausBot still has it
+# Subtest: prepare makes a Quick asks chat without selecting it when the saved one is gone, and keeps it
+ok 120 - prepare makes a Quick asks chat without selecting it when the saved one is gone, and keeps it
+# Subtest: prepare makes a new chat when the saved one belongs to another bot
+ok 121 - prepare makes a new chat when the saved one belongs to another bot
+# Subtest: two prepares at once make one chat
+ok 122 - two prepares at once make one chat
+# Subtest: prepare says why it cannot ask
+ok 123 - prepare says why it cannot ask
+# Subtest: a server still on its way up says starting, not down
+ok 124 - a server still on its way up says starting, not down
+# Subtest: a computer whose bots moved to My Cloud says so, on making the chat and on sending
+ok 125 - a computer whose bots moved to My Cloud says so, on making the chat and on sending
+# Subtest: the reply tracker follows only this ask
+ok 126 - the reply tracker follows only this ask
+# Subtest: an earlier turn's turn.completed after this ask's echo does not end the box
+ok 127 - an earlier turn's turn.completed after this ask's echo does not end the box
+# Subtest: an ask steered into the running turn follows that turn to its end
+ok 128 - an ask steered into the running turn follows that turn to its end
+# Subtest: a waiting card or an opened request means MausBot needs the person
+ok 129 - a waiting card or an opened request means MausBot needs the person
+# Subtest: ask listens before it sends, posts to the Quick asks chat, and ends with the turn
+ok 130 - ask listens before it sends, posts to the Quick asks chat, and ends with the turn
+# Subtest: a refused send, a lost stream, a failed turn and an abort
+ok 131 - a refused send, a lost stream, a failed turn and an abort
+# Subtest: a failed turn that still said something is done, not failed
+ok 132 - a failed turn that still said something is done, not failed
+# Subtest: readFrames joins frames split across chunks and skips heartbeats and junk
+ok 133 - readFrames joins frames split across chunks and skips heartbeats and junk
+# (node:8680) ExperimentalWarning: The MockTimers API is an experimental feature and might change at any time
+# (Use `node --trace-warnings ...` to show where the warning was created)
+# Subtest: the box's words and timings are fixed
+ok 134 - the box's words and timings are fixed
+# Subtest: a press listens with the key's release modifiers and shows the live words
+ok 135 - a press listens with the key's release modifiers and shows the live words
+# Subtest: letting go sends the words to the Quick asks chat and shows the reply, which hides 12 s later
+ok 136 - letting go sends the words to the Quick asks chat and shows the reply, which hides 12 s later
+# Subtest: a reply under the pointer stays until the pointer leaves
+ok 137 - a reply under the pointer stays until the pointer leaves
+# Subtest: presses while listening, sending or thinking are ignored
+ok 138 - presses while listening, sending or thinking are ignored
+# Subtest: a press while a reply shows closes it and starts a new ask
+ok 139 - a press while a reply shows closes it and starts a new ask
+# Subtest: voice in use refuses without listening
+ok 140 - voice in use refuses without listening
+# Subtest: an empty transcript closes silently, even when the recognizer reports an error
+ok 141 - an empty transcript closes silently, even when the recognizer reports an error
+# Subtest: words heard before a recognizer error are still sent
+ok 142 - words heard before a recognizer error are still sent
+# Subtest: permission and setup problems say what to fix, in the composer's words: only a refused permission asks for access
+ok 143 - permission and setup problems say what to fix, in the composer's words: only a refused permission asks for access
+# Subtest: a server that can't take asks says why and stops listening: down, still starting, no MausBot, or moved to My Cloud
+ok 144 - a server that can't take asks says why and stops listening: down, still starting, no MausBot, or moved to My Cloud
+# Subtest: a server that goes away as the words are sent says Open MausBot to talk
+ok 145 - a server that goes away as the words are sent says Open MausBot to talk
+# Subtest: busy while listening, sending or thinking; not once a reply, a notice or nothing shows
+ok 146 - busy while listening, sending or thinking; not once a reply, a notice or nothing shows
+# Subtest: a box that fails to close or to say where the pointer is still hides, and the next press works
+ok 147 - a box that fails to close or to say where the pointer is still hides, and the next press works
+# Subtest: needs-you shows and hides like a reply
+ok 148 - needs-you shows and hides like a reply
+# Subtest: no answer in 120 s shows Still working · Open chat
+ok 149 - no answer in 120 s shows Still working · Open chat
+# Subtest: a lost stream shows Still working; a refused send shows the failure
+ok 150 - a lost stream shows Still working; a refused send shows the failure
+# Subtest: a turn that fails shows the failure
+ok 151 - a turn that fails shows the failure
+# Subtest: a box that fails to draw never breaks the reply stream
+ok 152 - a box that fails to draw never breaks the reply stream
+# Subtest: replaced while listening closes the box and nothing is sent
+ok 153 - replaced while listening closes the box and nothing is sent
+# Subtest: clicking the box opens the chat; before the chat is known it only brings MausBot forward
+ok 154 - clicking the box opens the chat; before the chat is known it only brings MausBot forward
+# Subtest: dismissing while listening cancels capture
+ok 155 - dismissing while listening cancels capture
+# Subtest: quitting closes the box and cancels the ask under way
+ok 156 - quitting closes the box and cancels the ask under way
+# Subtest: listening stops by itself after 60 s and sends what was heard
+ok 157 - listening stops by itself after 60 s and sends what was heard
+# Subtest: an earlier ask's sink cannot touch the next ask
+ok 158 - an earlier ask's sink cannot touch the next ask
+# Subtest: a box that fails to draw when listening starts leaves later presses working
+ok 159 - a box that fails to draw when listening starts leaves later presses working
+# Subtest: speech that fails to start says Talking couldn't start, and a later press works
+ok 160 - speech that fails to start says Talking couldn't start, and a later press works
+# Subtest: a box that fails to draw when speech ends never throws back into speech
+ok 161 - a box that fails to draw when speech ends never throws back into speech
+# Subtest: registers the saved key when on; a press reaches onPress
+ok 162 - registers the saved key when on; a press reaches onPress
+# Subtest: a key another app holds is reported, and another key can be chosen
+ok 163 - a key another app holds is reported, and another key can be chosen
+# Subtest: off lets the key go, on takes it again, close lets it go
+ok 164 - off lets the key go, on takes it again, close lets it go
+# Subtest: an unknown key changes nothing
+ok 165 - an unknown key changes nothing
+# Subtest: where Apple speech is unavailable nothing registers and nothing changes
+ok 166 - where Apple speech is unavailable nothing registers and nothing changes
+# Subtest: refresh lets the key go once it is no longer available and takes it again when it is, keeping the saved choice
+ok 167 - refresh lets the key go once it is no longer available and takes it again when it is, keeping the saved choice
+# Subtest: a shortcut not set up says it is unavailable, in the same shape as a real one
+ok 168 - a shortcut not set up says it is unavailable, in the same shape as a real one
+# Subtest: a reported call blocks until it ends, its page navigates, or its renderer goes away
+ok 169 - a reported call blocks until it ends, its page navigates, or its renderer goes away
+# tests 169
+# suites 0
+# pass 169
+# fail 0
+# cancelled 0
+# skipped 0
+# todo 0
+# duration_ms 60350.041282

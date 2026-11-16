@@ -17,9 +17,10 @@ app.setName("MausBot Island Fixture");
 
 const BOT = "fixture-mausbot", THREAD = "fixture-island-thread";
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jhX8AAAAASUVORK5CYII=", "base64");
-const messages = [], uploads = [], stops = [], opened = [], checks = [];
+const messages = [], uploads = [], stops = [], opened = [], checks = [], remembered = [], recalls = [], listens = [];
 const events = new EventEmitter();
 let island, savedChat = null, stream = null, key = null, speaking = null;
+const shortcuts = new Map();
 const encoder = new TextEncoder();
 const json = (value, status = 200) => new Response(JSON.stringify(value), { status, headers: { "content-type": "application/json" } });
 function emit(value) { stream?.enqueue(encoder.encode(`data: ${JSON.stringify(value)}\n\n`)); }
@@ -61,6 +62,8 @@ function createOmi({ readKey, writeKey, onChange }) {
   const snapshot = () => ({ configured, status });
   return {
     snapshot, context: () => configured ? "Memória simulada do Omi: o projeto deve responder em português." : "",
+    async recall(query) { if (!configured) return ""; recalls.push(query); return "Memória simulada relacionada: reunião às 10h."; },
+    async remember(note) { remembered.push(note); return { ok: true, message: "Memória salva no Omi." }; },
     async configure(next) { await writeKey(next); assert.equal(await readKey(), next); configured = true; status = "connected"; onChange(snapshot()); },
     async disconnect() { await writeKey(null); configured = false; status = "disconnected"; onChange(snapshot()); },
     async refresh() { assert.equal(disposed, false); status = configured ? "connected" : "disconnected"; onChange(snapshot()); },
@@ -70,7 +73,7 @@ function createOmi({ readKey, writeKey, onChange }) {
 
 const speech = {
   busy: () => Boolean(speaking),
-  start(target) { speaking = target; target.transcript({ text: "Comando de voz simulado" }); },
+  start(target) { speaking = target; listens.push(target); events.emit("listen"); target.transcript({ text: "Comando de voz simulado" }); },
   finish(target) { assert.equal(target, speaking); speaking = null; target.end({ code: 0 }); },
   stop(target) { if (speaking === target) speaking = null; },
 };
@@ -110,7 +113,7 @@ try {
     iconPath: fileURLToPath(new URL("../electron/resources/app-icon.png", import.meta.url)),
     dataDir: temporary, prefs: { quickAsksChat: () => savedChat, setQuickAsksChat: (_server, chat) => { savedChat = chat; } },
     openChat: chat => { opened.push(chat); events.emit("open-chat"); }, allowed: () => true, starting: () => false,
-    globalShortcut: { register: () => false, unregister: () => {} }, createOmi,
+    globalShortcut: { register: (accelerator, press) => { shortcuts.set(accelerator, press); return true; }, unregister: accelerator => shortcuts.delete(accelerator) }, createOmi,
     captureFrame: async () => ({ dataUrl: `data:image/png;base64,${PNG.toString("base64")}`, displayId: "fixture-display" }),
     keyStore: { read: async () => key, write: async value => { key = value; } },
   });
@@ -140,6 +143,8 @@ try {
   await waitFor('document.getElementById("label").textContent === "Resposta"');
   assert.equal(messages.length, 1);
   assert.match(messages[0].text, /Memória simulada do Omi/);
+  assert.match(messages[0].text, /Memória simulada relacionada/);
+  assert.deepEqual(recalls, ["Explique a tela e considere o contexto do Omi"]);
   assert.match(messages[0].text, /<attached-image path="\/fixture\/attachments\/screen-1.png"/);
   assert.equal(uploads.length, 1);
   assert.deepEqual(uploads[0].bytes, PNG);
@@ -157,16 +162,41 @@ try {
   }
   passed("dark and light screenshots contain only fixture data");
 
+  await evaluate(`(()=>{window.spokenFixture=[];speechSynthesis.cancel=()=>{};speechSynthesis.speak=utterance=>{window.spokenFixture.push(utterance.text);setTimeout(()=>utterance.onend(),20)}})()`);
+  const nextListen = () => once(events, "listen", { signal: AbortSignal.timeout(6000) });
   await click("voice");
   await waitFor('document.getElementById("label").textContent === "Ouvindo…"');
-  const voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
+  let voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
+  let listening = nextListen();
   await click("voice");
   await voiceReceived;
-  await waitFor('document.getElementById("label").textContent === "Resposta"');
   assert.equal(messages.length, 2);
   assert.ok(messages[1].text.startsWith("Comando de voz simulado"));
-  assert.equal(speaking, null);
   passed("voice start, finish and transcript submission");
+
+  await listening;
+  assert.deepEqual(await evaluate("window.spokenFixture"), ["Resposta simulada: contexto recebido e imagem anexada."]);
+  await waitFor('document.getElementById("cancel").textContent === "Encerrar conversa"');
+  assert.match(await evaluate('document.getElementById("hints").textContent'), /falar .* tela .* parar .* abrir/);
+  voiceReceived = once(events, "message", { signal: AbortSignal.timeout(6000) });
+  listening = nextListen();
+  shortcuts.get("CommandOrControl+Shift+Space")();
+  await voiceReceived;
+  await listening;
+  assert.equal(listens.length, 3);
+  assert.equal((await evaluate("window.spokenFixture")).length, 2);
+  shortcuts.get("CommandOrControl+Alt+Shift+X")();
+  await waitFor('document.getElementById("label").textContent === "Pronto para ajudar"');
+  assert.equal(speaking, null);
+  assert.equal(messages.length, 3);
+  passed("keyboard voice conversation speaks the reply, listens again and stops by key");
+
+  await fill("prompt", "Prazo do artigo: 30 de novembro");
+  await click("save-omi");
+  await waitFor('document.getElementById("omi-state").textContent === "Memória salva no Omi."');
+  assert.deepEqual(remembered, ["Prazo do artigo: 30 de novembro"]);
+  assert.equal(await evaluate('document.getElementById("prompt").value'), "");
+  passed("a typed note is saved to Omi only on command");
 
   const chatOpened = once(events, "open-chat", { signal: AbortSignal.timeout(6000) });
   await click("open-chat");
@@ -195,15 +225,14 @@ try {
   passed("pause and disconnect prevent stale context on the next send");
 
   await writeFile(path.join(output, "result.json"), JSON.stringify({ ok: true, checks, messages: messages.length, uploads: uploads.length,
-    limitations: ["Omi, microphone, screen and server are simulated; native permissions and a real Omi key are not exercised."] }, null, 2));
+    limitations: ["Omi, microphone, speech synthesis, global shortcuts, screen and server are simulated; native permissions and a real Omi key are not exercised."] }, null, 2));
   console.log(`Evidence: ${output}`);
   console.log(`PASS ${checks.length} integration checks; no real network, account or screen content used.`);
   if (smoke) { island.dispose(); await rm(temporary, { recursive: true, force: true }); app.exit(0); }
   else app.once("before-quit", () => { island.dispose(); void rm(temporary, { recursive: true, force: true }); });
 } catch (error) {
   console.error(error);
-  island?.dispose();
-  await rm(temporary, { recursive: true, force: true });
+  await rm(temporary, { recursive: true, force: true }).catch(() => {});
   app.exit(1);
 }
 }

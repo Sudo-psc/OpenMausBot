@@ -21,6 +21,16 @@ This record covers the review and verification of `electron/island-omi.mjs` and 
   - `configure()` and `disconnect()` serialize `writeKey` persistence via `storage`, bump `generation`, abort any in-flight `prior` fetch, coalesce with any `refresh()` started while persistence is pending, and discard late responses from superseded generations.
   - Key material is accessed only through `readKey`/`writeKey` callbacks, never stored in `snapshot()` or `context()`, and provider response bodies on error are redacted.
 
+## Search and write, added 16 November 2026
+
+Checked against `backend/routers/developer.py` and `docs/doc/developer/api/memories.mdx` and `overview.mdx` on the `main` branch of `BasedHardware/omi`.
+
+- **`recall(query, { signal })`**: one `GET memories/vector/search?query=…&limit=8` per request the person sends (`search_memories_vector`, which returns `items[].content` and caps the limit at 20). The query is the first 200 characters of the request. It has a 4,000 ms deadline, returns at most 3,000 characters of quoted memory text, and resolves `""` on any failure without changing the connection status. A `429` or `Retry-After` holds back both searches and refreshes.
+- **`remember(note)`**: the adapter's only write, `POST memories` with `{ content, visibility: "private", tags: ["openmausbot"] }` (`create_memory`, `content` 1–500 characters). Omi treats the same text as the same memory, so a repeat is safe. It needs a key with `memories:write`; a `403` tells the person so. It resolves `{ ok, message }`, never throws, and runs only from the island's save button.
+- The adapter is therefore no longer read-only. It still issues no `PATCH` or `DELETE`, and does not touch the microphone or local Omi app data.
+
+`node --test electron/island-omi.node-test.mjs` on 16 November 2026: 14 tests passed, 0 failed, all against synthetic `fetch`. No live Omi call was made.
+
 ## Commands and Results
 
 Lint check (`npx oxlint --deny-warnings electron/island-omi.mjs electron/island-omi.node-test.mjs`):

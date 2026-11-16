@@ -5,6 +5,7 @@ import { createDesktopScreenCapture, createScreenContext } from "./island-screen
 import { createOmiContext } from "./island-omi.mjs";
 import { createIslandKeyStore } from "./island-key-store.mjs";
 import { createIslandSession } from "./island-session.mjs";
+import { createIslandShortcuts } from "./island-shortcuts.mjs";
 import { createTalkServer } from "./talk-server.mjs";
 
 export function islandBounds(display, expanded) {
@@ -27,14 +28,14 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   win.setContentProtection(true);
   win.webContents.setWindowOpenHandler(() => ({ action: "deny" }));
   win.webContents.on("will-navigate", event => event.preventDefault());
-  let loaded = false, closed = false, suspended = false, controller;
+  let loaded = false, closed = false, suspended = false, controller, shortcuts = null;
   let latestView = null;
   function render(view) {
     latestView = view;
     if (!loaded || closed) return;
     win.setFocusable(Boolean(view.expanded));
     win.setBounds(islandBounds(screen.getPrimaryDisplay(), view.expanded));
-    void win.webContents.executeJavaScript(`render(${JSON.stringify(view)})`).catch(() => {});
+    void win.webContents.executeJavaScript(`render(${JSON.stringify({ ...view, shortcuts: shortcuts?.labels ?? {} })})`).catch(() => {});
   }
   const keyStore = suppliedKeyStore ?? createIslandKeyStore({ file: path.join(dataDir, "island-omi-key.enc"),
     encryption: { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value),
@@ -44,7 +45,7 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   const omi = createOmi({ readKey: () => keyStore.read(), writeKey: key => keyStore.write(key), onChange: () => controller?.repaint() });
   controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed,
     server: createTalkServer({ request, prefs, serverKey: () => `${dataDir}:island`, starting }) });
-  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi"]);
+  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi"]);
   win.webContents.on("ipc-message", (event, channel, command, ...args) => {
     if (event.senderFrame !== win.webContents.mainFrame || channel !== "island:command" || !commands.has(command)) return;
     Promise.resolve(controller[command](...args)).catch(() => {});
@@ -53,8 +54,8 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   const resume = () => { suspended = false; };
   powerMonitor.on("lock-screen", suspend); powerMonitor.on("suspend", suspend);
   powerMonitor.on("unlock-screen", resume); powerMonitor.on("resume", resume);
-  const shortcut = "CommandOrControl+Shift+Space";
-  const registered = globalShortcut?.register(shortcut, () => controller.toggleVoice()) ?? false;
+  shortcuts = createIslandShortcuts({ globalShortcut, actions: { voice: () => controller.toggleVoice(), capture: () => controller.toggleCapture(),
+    stop: () => controller.stop(), expand: () => controller.toggleExpanded() } });
   const reposition = () => { if (latestView) render(latestView); };
   screen.on("display-metrics-changed", reposition); screen.on("display-removed", reposition);
   win.webContents.on("did-finish-load", () => {
@@ -67,7 +68,7 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   function dispose() {
     if (closed) return; closed = true;
     controller.dispose();
-    if (registered) globalShortcut.unregister(shortcut);
+    shortcuts.close();
     powerMonitor.removeListener("lock-screen", suspend); powerMonitor.removeListener("suspend", suspend);
     powerMonitor.removeListener("unlock-screen", resume); powerMonitor.removeListener("resume", resume);
     screen.removeListener("display-metrics-changed", reposition); screen.removeListener("display-removed", reposition);

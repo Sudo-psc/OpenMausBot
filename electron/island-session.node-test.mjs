@@ -9,12 +9,15 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 
 function harness(options = {}) {
   const h = { views: [], asks: [], preparations: [], requests: [], starts: [], stopped: [], finished: [], opened: [],
-    active: false, busy: false, frameList: [], omiContext: "Omi fixture context", disposed: 0, sink: null };
+    active: false, busy: false, frameList: [], omiContext: "Omi fixture context", disposed: 0, sink: null,
+    recalls: [], recalled: "", remembered: [] };
   h.session = createIslandSession({
     screenContext: { snapshot: () => ({ active: h.active, frameCount: h.frameList.length }),
       frames: () => h.frameList, start: () => { h.active = true; }, pause: () => { h.active = false; h.frameList = []; },
       dispose: () => { h.active = false; h.frameList = []; h.disposed += 1; } },
     omi: { snapshot: () => ({ status: "ready" }), context: () => h.omiContext,
+      recall: async (query, opts) => { h.recalls.push([query, opts]); return h.recalled; },
+      remember: options.remember ?? (async note => { h.remembered.push(note); return { ok: true, message: "Memória salva no Omi." }; }),
       configure: options.configure ?? (async () => {}), disconnect: options.disconnect ?? (async () => {}), refresh: async () => {}, dispose: () => { h.disposed += 1; } },
     speech: { busy: () => h.busy, start: (sink, opts) => { h.sink = sink; h.starts.push(opts); },
       stop: sink => h.stopped.push(sink), finish: sink => h.finished.push(sink) },
@@ -238,4 +241,154 @@ test("dispose releases capture, Omi and microphone, and ignores late transcripts
   assert.equal(h.disposed, 2);
   assert.deepEqual(h.stopped, [sink]);
   assert.equal(h.asks.length, 0);
+});
+
+async function say(h, words) {
+  h.sink.transcript({ text: words });
+  h.sink.end({ code: 0 });
+  await flush(); await flush();
+}
+
+test("memories Omi finds for the request come before the cached Omi context", async () => {
+  const h = harness();
+  h.recalled = "Memórias relacionadas";
+  await h.session.send("  Qual é o prazo do artigo?  ");
+  assert.equal(h.recalls[0][0], "Qual é o prazo do artigo?");
+  assert.ok(h.recalls[0][1].signal instanceof AbortSignal);
+  assert.equal(h.preparations[0].omiContext, "Memórias relacionadas\n\nOmi fixture context");
+  h.session.dispose();
+});
+
+test("a voice turn is spoken, then the island listens again until the person stays quiet", async () => {
+  const h = harness();
+  h.session.toggleVoice();
+  await say(h, "Que horas é a reunião?");
+  const answered = h.views.at(-1);
+  assert.equal(answered.state, "reply");
+  assert.equal(answered.conversation, true);
+  assert.deepEqual(answered.speech, { turn: answered.speech.turn, text: "Fixture answer", done: true });
+  assert.equal(h.starts.length, 1);
+  h.session.spoken(answered.speech.turn + 1);
+  assert.equal(h.starts.length, 1);
+  h.session.spoken(answered.speech.turn);
+  assert.equal(h.starts.length, 2);
+  assert.equal(h.views.at(-1).state, "listening");
+  assert.equal(h.views.at(-1).speech, null);
+  h.sink.end({ code: 0 });
+  assert.equal(h.views.at(-1).state, "idle");
+  assert.equal(h.views.at(-1).conversation, false);
+  assert.equal(h.asks.length, 1);
+  h.session.dispose();
+});
+
+test("a streamed voice reply is handed to speech before the turn completes", async () => {
+  const done = deferred();
+  const h = harness({ ask: async input => { input.onUpdate({ kind: "reply", text: "Primeira frase. Segun" }); await done.promise; input.onUpdate({ kind: "reply", text: "Primeira frase. Segunda." }); return "done"; } });
+  h.session.toggleVoice();
+  await say(h, "Conte algo");
+  assert.equal(h.views.at(-1).state, "thinking");
+  assert.equal(h.views.at(-1).speech.text, "Primeira frase. Segun");
+  assert.equal(h.views.at(-1).speech.done, false);
+  h.session.spoken(h.views.at(-1).speech.turn);
+  assert.equal(h.starts.length, 1);
+  done.resolve(); await flush();
+  assert.equal(h.views.at(-1).speech.done, true);
+  h.session.dispose();
+});
+
+test("a typed request is never spoken and does not open the microphone", async () => {
+  const h = harness();
+  await h.session.send("Resuma");
+  assert.equal(h.views.at(-1).speech, null);
+  assert.equal(h.views.at(-1).conversation, false);
+  h.session.spoken(1);
+  assert.equal(h.starts.length, 0);
+  h.session.dispose();
+});
+
+test("the voice key interrupts a spoken reply and listens at once", async () => {
+  const h = harness();
+  h.session.toggleVoice();
+  await say(h, "Primeira pergunta");
+  assert.ok(h.views.at(-1).speech);
+  h.session.toggleVoice();
+  assert.equal(h.views.at(-1).state, "listening");
+  assert.equal(h.views.at(-1).speech, null);
+  assert.equal(h.starts.length, 2);
+  h.session.dispose();
+});
+
+test("stop ends listening, speaking and the conversation, and cancels a running task", async () => {
+  const h = harness();
+  h.session.toggleVoice();
+  const first = h.sink;
+  h.session.stop();
+  assert.deepEqual(h.stopped, [first]);
+  assert.equal(h.views.at(-1).state, "idle");
+  assert.equal(h.views.at(-1).conversation, false);
+  h.session.toggleVoice();
+  await say(h, "Pergunta");
+  h.session.stop();
+  assert.equal(h.views.at(-1).speech, null);
+  assert.equal(h.views.at(-1).conversation, false);
+  assert.equal(h.views.at(-1).state, "reply");
+  h.session.spoken(h.asks.length);
+  assert.equal(h.starts.length, 2);
+  h.session.dispose();
+
+  const waiting = deferred();
+  const busy = harness({ ask: () => waiting.promise });
+  const sending = busy.session.send("Tarefa longa"); await flush();
+  await busy.session.stop();
+  assert.equal(busy.requests[0][0], "/api/bots/bot-1/interrupt");
+  waiting.resolve("done"); await sending;
+  busy.session.dispose();
+});
+
+test("a failed or waiting voice turn does not reopen the microphone", async () => {
+  for (const result of ["failed", "needs-you"]) {
+    const h = harness({ ask: async input => { input.onUpdate({ kind: "reply", text: "Parcial" }); return result; } });
+    h.session.toggleVoice();
+    await say(h, "Pedido");
+    assert.equal(h.views.at(-1).conversation, false);
+    const turn = h.views.at(-1).speech?.turn;
+    if (turn) h.session.spoken(turn);
+    assert.equal(h.starts.length, 1);
+    h.session.dispose();
+  }
+});
+
+test("saving to Omi sends the typed note, or the last exchange, only on command", async () => {
+  const h = harness();
+  await h.session.saveToOmi("");
+  assert.deepEqual(h.remembered, []);
+  assert.equal(h.views.at(-1)?.canSaveReply ?? false, false);
+  await h.session.send("Qual é o prazo?");
+  assert.deepEqual(h.remembered, []);
+  assert.equal(h.views.at(-1).canSaveReply, true);
+  await h.session.saveToOmi("  Prazo do artigo: 30 de novembro  ");
+  await h.session.saveToOmi();
+  assert.deepEqual(h.remembered, ["Prazo do artigo: 30 de novembro", "Pergunta: Qual é o prazo?\nResposta: Fixture answer"]);
+  assert.equal(h.views.at(-1).omiNote, "Memória salva no Omi.");
+  h.session.dispose();
+
+  const refused = harness({ remember: async () => ({ ok: false, message: "O Omi recusou salvar a memória." }) });
+  await refused.session.saveToOmi("Nota");
+  assert.equal(refused.views.at(-1).omiNote, "O Omi recusou salvar a memória.");
+  assert.equal(refused.views.at(-1).state, "idle");
+  refused.session.dispose();
+});
+
+test("a reply that arrives after the screen locks is shown but not spoken", async () => {
+  const waiting = deferred();
+  const h = harness({ ask: async input => { await waiting.promise; input.onUpdate({ kind: "reply", text: "Resposta privada." }); return "done"; } });
+  h.session.toggleVoice();
+  await say(h, "Pergunta");
+  h.session.suspend();
+  waiting.resolve(); await flush();
+  assert.equal(h.views.at(-1).state, "reply");
+  assert.equal(h.views.at(-1).text, "Resposta privada.");
+  assert.equal(h.views.at(-1).speech, null);
+  assert.equal(h.starts.length, 1);
+  h.session.dispose();
 });

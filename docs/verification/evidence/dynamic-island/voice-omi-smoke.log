@@ -1,0 +1,12 @@
+PASS compact and expanded window through real preload
+PASS continuous capture stays local before send
+PASS Omi configure, secure field clearing and refresh
+PASS text sends Omi and image context and displays streamed reply
+PASS dark and light screenshots contain only fixture data
+PASS voice start, finish and transcript submission
+PASS keyboard voice conversation speaks the reply, listens again and stops by key
+PASS a typed note is saved to Omi only on command
+PASS open chat and cancel target only the fixture thread
+PASS pause and disconnect prevent stale context on the next send
+Evidence: docs/verification/evidence/dynamic-island
+PASS 10 integration checks; no real network, account or screen content used.

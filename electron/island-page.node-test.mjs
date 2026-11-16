@@ -4,7 +4,7 @@ import vm from "node:vm";
 import { dynamicIslandHtml, ISLAND_SIZE } from "./island-page.mjs";
 import { createIslandSession } from "./island-session.mjs";
 
-function page() {
+function page({ synth } = {}) {
   const html = dynamicIslandHtml("AA==");
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(([, id]) => [id, {
     value: "", textContent: "", hidden: ["settings", "details"].includes(id), disabled: false, attributes: {}, listeners: {},
@@ -13,8 +13,10 @@ function page() {
   }]));
   const calls = [], listeners = {};
   const context = vm.createContext({
-    document: { body: {}, getElementById: id => elements.get(id), addEventListener: (name, fn) => { listeners[name] = fn; } },
-    window: { island: new Proxy({}, { get: (_, name) => (...args) => calls.push([name, ...args]) }) },
+    document: { body: {}, documentElement: { lang: "pt-BR" }, getElementById: id => elements.get(id), addEventListener: (name, fn) => { listeners[name] = fn; } },
+    window: { speechSynthesis: synth, island: new Proxy({}, { get: (_, name) => (...args) => calls.push([name, ...args]) }) },
+    SpeechSynthesisUtterance: function (text) { this.text = text; },
+    setTimeout: () => 0, clearTimeout: () => {},
   });
   vm.runInContext(html.match(/<script>([\s\S]*?)<\/script>/)[1], context);
   return { context, calls, elements, listeners, render: next => vm.runInContext(`render(${JSON.stringify(next)})`, context), click: id => elements.get(id).listeners.click() };
@@ -75,7 +77,7 @@ test("Omi failure during a task keeps Cancel visible and preserves a new draft",
   let finish;
   const session = createIslandSession({
     screenContext: { snapshot: () => ({ active: false }), frames: () => [], dispose() {} },
-    omi: { snapshot: () => ({ status: "disconnected" }), context: () => "",
+    omi: { snapshot: () => ({ status: "disconnected" }), context: () => "", recall: async () => "",
       configure: async () => { throw new Error("fixture Omi error"); }, dispose() {} },
     speech: {},
     server: { prepare: async () => ({ botId: "fixture", threadId: "fixture" }),
@@ -133,4 +135,82 @@ test("page has no network access or HTML interpolation of context and guards ico
   assert.match(html, /prefers-reduced-motion/);
   assert.match(html, /type="password" autocomplete="off"/);
   assert.doesNotMatch(html, /innerHTML|insertAdjacentHTML|localStorage|sessionStorage|alert\(1\)/);
+});
+
+function voice() {
+  const spoken = [];
+  const synth = { cancelled: 0, speak: utterance => spoken.push(utterance), cancel() { synth.cancelled += 1; } };
+  return { spoken, synth, p: page({ synth }) };
+}
+
+test("a streamed reply is spoken sentence by sentence and reported once when it ends", () => {
+  const { p, spoken } = voice();
+  p.render({ state: "thinking", speech: { turn: 3, text: "Olá, **Philipe**. A reun", done: false } });
+  assert.deepEqual(spoken.map(item => item.text), ["Olá, Philipe."]);
+  assert.equal(spoken[0].lang, "pt-BR");
+  p.render({ state: "thinking", speech: { turn: 3, text: "Olá, **Philipe**. A reun", done: false } });
+  assert.equal(spoken.length, 1);
+  p.render({ state: "reply", speech: { turn: 3, text: "Olá, **Philipe**. A reunião é às 10h", done: true } });
+  assert.deepEqual(spoken.map(item => item.text), ["Olá, Philipe.", "A reunião é às 10h"]);
+  assert.equal(p.elements.get("label").textContent, "Falando…");
+  spoken[0].onend();
+  assert.deepEqual(p.calls, []);
+  spoken[1].onerror(); spoken[1].onend();
+  assert.deepEqual(p.calls, [["spoken", 3]]);
+});
+
+test("speech stops when the island withdraws it, and a silent engine still reports the turn", () => {
+  const { p, spoken, synth } = voice();
+  p.render({ state: "reply", speech: { turn: 1, text: "Resposta longa.", done: true } });
+  p.render({ state: "listening", speech: null });
+  assert.equal(synth.cancelled, 1);
+  spoken[0].onend();
+  assert.deepEqual(p.calls, []);
+
+  const mute = page();
+  mute.render({ state: "reply", speech: { turn: 2, text: "Sem voz instalada.", done: true } });
+  assert.deepEqual(mute.calls, [["spoken", 2]]);
+});
+
+test("the conversation can be ended from the island and with Escape", () => {
+  const p = page();
+  p.render({ expanded: true, state: "reply", conversation: true });
+  assert.equal(p.elements.get("cancel").hidden, false);
+  assert.equal(p.elements.get("cancel").textContent, "Encerrar conversa");
+  p.click("cancel");
+  p.listeners.keydown({ key: "Escape" });
+  assert.deepEqual(p.calls, [["stop"], ["stop"]]);
+  p.render({ state: "idle", conversation: false });
+  assert.equal(p.elements.get("cancel").hidden, true);
+});
+
+test("saving to Omi needs a connection and either a typed note or an answer", () => {
+  const p = page();
+  p.render({ expanded: true, omi: { status: "disconnected" } });
+  assert.equal(p.elements.get("save-omi").hidden, true);
+  p.render({ omi: { status: "ready", configured: true } });
+  assert.equal(p.elements.get("save-omi").hidden, false);
+  assert.equal(p.elements.get("save-omi").disabled, true);
+  p.click("save-omi");
+  assert.deepEqual(p.calls, []);
+  p.render({ canSaveReply: true });
+  assert.equal(p.elements.get("save-omi").textContent, "Salvar resposta");
+  p.click("save-omi");
+  const field = p.elements.get("prompt");
+  field.value = "  Prazo: 30/11  "; field.listeners.input();
+  assert.equal(p.elements.get("save-omi").textContent, "Salvar nota");
+  p.click("save-omi");
+  assert.deepEqual(p.calls, [["saveToOmi", ""], ["saveToOmi", "Prazo: 30/11"]]);
+  assert.equal(field.value, "");
+  p.render({ omiNote: "Memória salva no Omi." });
+  assert.equal(p.elements.get("omi-state").textContent, "Memória salva no Omi.");
+});
+
+test("only the keys the island really holds are shown", () => {
+  const p = page();
+  p.render({ expanded: true });
+  assert.equal(p.elements.get("hints").hidden, true);
+  p.render({ shortcuts: { voice: "⌘⇧Space", stop: "⌘⌥⇧X" } });
+  assert.equal(p.elements.get("hints").hidden, false);
+  assert.equal(p.elements.get("hints").textContent, "⌘⇧Space falar · ⌘⌥⇧X parar");
 });

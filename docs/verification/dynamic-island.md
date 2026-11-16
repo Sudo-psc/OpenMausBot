@@ -7,18 +7,43 @@ visuais extraídos do Vovy. OpenMausBot mantém sua licença Apache 2.0.
 ## Comportamento
 
 - Janela junto ao topo da tela principal, compacta ou expandida, com texto e voz.
-- Atalho `Command+Shift+Space` no Mac, quando disponível; o botão Falar continua
-  disponível se outro aplicativo tiver reservado o atalho.
+- Atalhos globais, registrados só enquanto a ilha está aberta. A ilha mostra
+  apenas os que conseguiu registrar; se outro aplicativo já usa a tecla, os
+  botões continuam disponíveis.
+
+  | Ação | Mac | Windows e Linux |
+  | --- | --- | --- |
+  | Falar, finalizar a fala ou interromper a resposta falada | `⌘⇧Space` | `Ctrl+Shift+Space` |
+  | Ativar ou pausar a percepção da tela | `⌘⌥⇧S` | `Ctrl+Alt+Shift+S` |
+  | Parar: encerra a conversa por voz ou cancela a tarefa em curso | `⌘⌥⇧X` | `Ctrl+Alt+Shift+X` |
+  | Expandir ou recolher a ilha | `⌘⌥⇧I` | `Ctrl+Alt+Shift+I` |
+
+- Conversa por voz: um pedido falado recebe resposta falada, frase a frase,
+  enquanto o texto chega. Ao terminar de falar, a ilha volta a ouvir sozinha.
+  A conversa termina com 8 segundos de silêncio, com o atalho Parar, com `Esc`
+  na ilha, com um pedido digitado, com erro ou ao bloquear a tela. Pedidos
+  digitados nunca são falados. Uma resposta que chega com a tela bloqueada é
+  exibida, não falada.
+- A fala usa a voz do sistema pelo navegador embutido, no idioma `pt-BR`. O
+  microfone só abre depois que a fala termina, então a ilha não ouve a própria
+  resposta.
 - A percepção começa pausada. Ativar percepção captura o monitor do cursor a
   cada 5 segundos, até três imagens JPEG em memória, com validade de 30 segundos.
 - Pausar, bloquear a tela, suspender ou sair descarta as imagens. Após desbloquear,
   é preciso ativar novamente. Não há reconhecimento contínuo de áudio.
-- Só um pedido explícito envia as imagens recentes e o contexto Omi ao bot. A
+- Só um pedido explícito, digitado ou falado, envia as imagens recentes e o
+  contexto Omi ao bot. A
   captura contínua não é um agente autônomo que executa instruções vistas na tela.
 - As imagens enviadas se tornam anexos normais do histórico da conversa. Pausar
   limpa o buffer local, mas não apaga mensagens e anexos já enviados.
-- Omi continua funcionando em paralelo. O adaptador lê a API oficial; não lê os
+- Omi continua funcionando em paralelo. O adaptador usa a API oficial; não lê os
   arquivos privados do aplicativo e não controla seu microfone.
+- Memória do Omi em três caminhos: a amostra recente (20 memórias e 10
+  conversas, renovada a cada 2 minutos); uma busca por pedido, que envia ao Omi
+  os primeiros 200 caracteres do pedido e inclui até 8 memórias relacionadas; e
+  a gravação, só pelos botões Salvar nota ou Salvar resposta, que cria uma
+  memória privada de até 500 caracteres com a etiqueta `openmausbot`. Gravar
+  exige uma chave com o escopo `memories:write`. Nada é gravado sem o comando.
 - Chave Omi inserida no campo protegido da ilha, cifrada pelo sistema operacional
   e mantida fora do renderer depois da submissão. Nunca inserir a chave em chat.
 - O modelo/serviço configurado no bot recebe o contexto enviado; esta branch
@@ -100,7 +125,35 @@ As regressões em `electron/island-session.node-test.mjs` e
 Esses resultados usam dados simulados. Permanecem pendentes os testes com
 microfone, captura da tela e conta Omi reais descritos acima.
 
+### Resultado da conversa por voz e da memória Omi em 16 de novembro de 2026
+
+Executado em Linux (Node 22, Electron sob `xvfb-run`), com dados simulados.
+
+| Comando | Resultado | Saída |
+| --- | --- | --- |
+| `node --test electron/island-*.node-test.mjs electron/talk-*.node-test.mjs` | exit 0; 169 testes passaram, 0 falharam | [voice-omi-node-tests.log](evidence/dynamic-island/voice-omi-node-tests.log) |
+| `pnpm typecheck` | exit 0 | |
+| `pnpm lint` | exit 0 | |
+| `xvfb-run -a pnpm exec electron --no-sandbox scripts/smoke-dynamic-island.mjs --smoke` | exit 0; 10 verificações passaram | [voice-omi-smoke.log](evidence/dynamic-island/voice-omi-smoke.log) |
+| `pnpm exec vitest run server/island-server.e2e.test.ts` | exit 0; 1 teste passou em servidor isolado | |
+
+O smoke agora cobre a conversa por atalho (resposta falada, nova escuta e
+Parar) e a gravação de uma nota no Omi. Uma falha no smoke passou a encerrar
+com exit 1; antes, a janela fechada encerrava o Electron com exit 0.
+
+Não verificado nesta rodada: voz real do macOS, microfone, atalhos globais
+reais, captura real da tela e conta Omi real, incluindo a busca
+`memories/vector/search` e a gravação com escopo `memories:write`.
+
 ## Limites conhecidos
+
+A voz depende das vozes instaladas no sistema. Sem voz disponível, a resposta
+aparece só em texto e a conversa segue ouvindo. Marcação simples de Markdown é
+removida antes da fala; blocos de código são lidos como texto. A busca no Omi
+consome o mesmo limite horário de leitura de memórias; ao receber 429, a ilha
+suspende buscas e atualizações pelo tempo indicado. Uma busca lenta (4 s) ou
+recusada é ignorada e o pedido segue sem as memórias relacionadas.
+
 
 A proteção de conteúdo de uma janela não garante sua exclusão de capturas no
 macOS moderno. A ilha e outras sobreposições podem aparecer na imagem. Captura
