@@ -15,7 +15,8 @@ Nome provisório: **MacaOS** (trocar sem custo — o plano não depende dele).
 | Princípio | Consequência de engenharia |
 |---|---|
 | Pequeno e rápido | Swift puro, ~30–50 MB de app; nada de Electron. Runtime Python opcional apenas como serviço auxiliar (não essencial). |
-| Local-first | Captura, embeddings, SQLite e áudio ficam em `~/Library/Application Support/MacaOS`. LLM de raciocínio é BYO-key (nuvem ou modelo local via llama.cpp/MLX). |
+| Licenciado e aberto | Código Apache 2.0 desde o primeiro commit do repo próprio; sem build fechado nem freemium. |
+| Local-first | Captura, embeddings, SQLite e áudio ficam em `~/Library/Application Support/MacaOS`. LLM de raciocínio é BYO-key: nuvem no MVP, caminho local 100% suportado a partir da F6. |
 | Um atalho, sempre presente | Hotkey global (`Fn` duplo ou `⌃⌥Space`) abre overlay **sem roubar foco** do app ativo. |
 | Ver + agir separados | Percepção roda sempre; ação exige política de aprovação por classe de risco (herdado de OpenMausBot). |
 | Privacidade por padrão | Pausa de captura em apps sensíveis (banco, saúde, 1Password), redação de segredos antes de persistir, tecla de pânico que apaga a janela recente. |
@@ -213,9 +214,10 @@ Camadas, da mais barata e confiável para a mais genérica:
    `AXSetValue`: cliques semanticamente corretos, sem depender de pixel.
 3. **CGEvent** — movimento de cursor sintético, digitação, scroll, teclas de
    atalho; usado quando a AX tree não expõe o alvo.
-4. **Browser** — ponte dedicada: extensão companion (Native Messaging) para
-   Chrome/Safari/Arc com leitura de DOM, clique por seletor e screenshot por
-   aba; fallback AppleScript `do JavaScript`.
+4. **Browser** — ponte dedicada: extensão companion própria (Manifest V3,
+   Native Messaging) para Chrome/Arc/Safari com leitura de DOM, clique por
+   seletor e screenshot por aba; sem `<all_urls>` default, e o fallback
+   AppleScript `do JavaScript` só quando a extensão não está instalada.
 5. **Terminal/files** — comandos shell executados sob **sandbox-exec (Seatbelt)**
    com perfis SBPL gerados (padrão OpenSquilla), Full Disk Access como opt-in.
 
@@ -296,6 +298,7 @@ provedor realtime) ou < 2.5 s (pipeline local STT+LLM streaming).
 | Camada | Escolha | Peso |
 |---|---|---|
 | App | Swift 6 + SwiftUI/AppKit, deployment target macOS 14 | binário ~15 MB |
+| UI bilíngue | Catálogo `.strings` único PT-BR + EN com fallback EN; locale detectado no first-run e trocável em Settings | ~0 MB |
 | Embeddings | mlx-swift-lm `EmbeddingGemma2` (BF16) | pesos ~1.5 GB (download sob demanda, first-run) |
 | Vetorial | SQLite WAL + sqlite-vec + FTS5 | embutido |
 | STT local | whisper.cpp large-v3-turbo-q5 | ~570 MB (opcional; padrão = streaming do provedor) |
@@ -315,8 +318,9 @@ Screen Recording, Microphone, Accessibility, Automation; opcionais: System Audio
 
 ## 5. Roadmap por fatias (cada uma entregando valor usável)
 
-**F0 — Esqueleto (semana 1–2).** Projeto SPM, app de menu bar, NSPanel
-nonactivating, hotkey global, onboarding de permissões, SQLite+sqlite-vec+FTS5
+**F0 — Esqueleto (semana 1–2).** Projeto SPM sob licença Apache 2.0, app de
+menu bar, NSPanel nonactivating, hotkey global, onboarding de permissões,
+catálogo de strings PT-BR/EN, SQLite+sqlite-vec+FTS5
 com migrações, ModelRuntime com EmbeddingGemma 2 via MLX e teste de sanidade
 cross-modal (texto→imagem cosine > 0.6).
 
@@ -337,13 +341,17 @@ STT streaming, TTS, whisper.cpp local como alternativa offline; áudio de
 reuniões (mic + system) entrando na memória.
 
 **F5 — Mãos (semana 10–12).** ToolRegistry completa (Shortcuts, AppleScript,
-AX click/type, CGEvent, browser bridge, terminal sandboxado), PolicyGate com
+AX click/type, CGEvent, terminal sandboxado), extensão de browser própria
+(MV3 + Native Messaging) como ponte de DOM/clique/screenshot por aba,
+PolicyGate com
 cartões de aprovação, journal before/after, modo takeover com pausa por hotkey.
 
 **F6 — Cérebro contínuo (semana 13–15).** Episódios automáticos, memória
 markdown estilo OpenMausBot (budget, redação, undo), SkillForge propose→verify
 →adopt, router local de tiers, widget dinâmico com sugestões contextuais,
-watchers/agendador ("me avisa quando aparecer X na tela").
+watchers/agendador ("me avisa quando aparecer X na tela"). Backend 100% local
+do LLM de raciocínio (llama.cpp/MLX) sai aqui de opcional para caminho suportado
+ao lado do BYO-key de nuvem.
 
 Cada fatia fecha com suíte de verificação própria: fixtures de frames sintéticos
 (nada de dados reais no CI), testes determinísticos do DiffGate/schema, e
@@ -367,16 +375,23 @@ descartável — prática herdada do `docs/verification/` do OpenMausBot.
 
 ---
 
-## 7. Decisões abertas (precisam do seu aval)
+## 7. Decisões aprovadas (2026-11-16)
 
-1. **Licença e posicionamento**: open-source Apache 2.0 (como OpenSquilla/
-   OpenMausBot) ou fonte-privada com freemium?
-2. **LLM padrão**: assumir BYO-key de nuvem no MVP (mais fácil, melhor
-   qualidade) e deixar local como F6? Ou exigir 100% local desde F2?
-3. **Idiomas**: PT-BR + EN no STT/TTS/UI desde o início (whisper.cpp cobre;
-   EmbeddingGemma 2 é multilíngue)?
-4. Extensão de browser própria já na F5 ou começar só com AppleScript/AX?
+1. **Licença e posicionamento**: Apache 2.0, open-source desde o primeiro
+   commit do repo MacaOS (mesma família de licença de OpenSquilla/OpenMausBot).
+   Sem freemium fechado; monetização futura, se houver, precisa de nova decisão.
+2. **LLM padrão**: BYO-key de nuvem no MVP (OpenAI/Anthropic/Groq via uma
+   interface `ChatProvider` única), com backend local 100% promovido a F6 —
+   não opcional tardio. Nenhum texto de tela ou áudio sai da máquina sem o
+   usuário ter fornecido a key e visto o aviso na onboarding.
+3. **Idiomas**: PT-BR + EN no STT/TTS/UI desde a F0 (whisper.cpp cobre ambos;
+   EmbeddingGemma 2 é multilíngue). Strings em catálogo único com fallback EN.
+4. **Browser na F5**: extensão própria (MV3, pontes content-script + native
+   messaging) já na F5, e não AppleScript/AX-first. Motivo: o degrau "browser"
+   da escada de ações precisa de leitura estruturada de DOM e CDP-like
+   confiável, que AX entrega mal em SPAs. A extensão nasce com o mesmo PolicyGate
+   das demais mãos e sem permissão `<all_urls>` default.
 
-Se aprovar, o próximo passo concreto é a F0: scaffold do pacote Swift com o
-harness de permissões, o NSPanel nonactivating e o teste cross-modal do
-EmbeddingGemma 2 rodando em < 1 dia de trabalho.
+Próximo passo concreto: F0 — scaffold do pacote Swift com o harness de
+permissões, o NSPanel nonactivating, o catálogo PT-BR/EN e o teste cross-modal
+do EmbeddingGemma 2 rodando em < 1 dia de trabalho.
