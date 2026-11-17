@@ -17,7 +17,7 @@ const LABEL_KEYS = Object.freeze({
   saveNote: "native.island.saveNote", saveReply: "native.island.saveReply", saveHint: "native.island.saveHint",
   shortcutVoice: "native.island.shortcutVoice", shortcutCapture: "native.island.shortcutCapture",
   shortcutStop: "native.island.shortcutStop", shortcutExpand: "native.island.shortcutExpand",
-  shortcuts: "native.island.shortcuts", dictate: "native.island.dictate", stopDictation: "native.island.stopDictation",
+  shortcuts: "native.island.shortcuts", captureHidden: "native.island.captureHidden", recall: "native.island.recall", recallHint: "native.island.recallHint", dictate: "native.island.dictate", stopDictation: "native.island.stopDictation",
   dictating: "native.island.dictating", dictateHint: "native.island.dictateHint", voiceHint: "native.island.voiceHint",
   shortcutDictate: "native.island.shortcutDictate", computerReady: "native.island.computerReady",
   computerOff: "native.island.computerOff", computerPermissions: "native.island.computerPermissions",

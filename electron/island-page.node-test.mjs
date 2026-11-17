@@ -2,10 +2,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import vm from "node:vm";
 import { dynamicIslandHtml, ISLAND_SIZE } from "./island-page.mjs";
+import { islandLabels } from "./island-text.mjs";
 import { createIslandSession } from "./island-session.mjs";
 
-function page({ synth } = {}) {
-  const html = dynamicIslandHtml("AA==");
+function page({ synth, labels } = {}) {
+  const html = dynamicIslandHtml("AA==", labels);
   const elements = new Map([...html.matchAll(/id="([^"]+)"/g)].map(([, id]) => [id, {
     value: "", textContent: "", hidden: ["settings", "details"].includes(id), disabled: false, attributes: {}, listeners: {},
     setAttribute(name, value) { this.attributes[name] = value; },
@@ -76,7 +77,7 @@ test("Omi failure during a task keeps Cancel visible and preserves a new draft",
   const p = page();
   let finish;
   const session = createIslandSession({
-    screenContext: { snapshot: () => ({ active: false }), frames: () => [], select: async () => [], setContinuous() {}, dispose() {} },
+    screenContext: { snapshot: () => ({ active: false }), frames: () => [], situation: async () => null, select: async () => [], setContinuous() {}, dispose() {} },
     omi: { snapshot: () => ({ status: "disconnected" }), context: () => "", recall: async () => "",
       configure: async () => { throw new Error("fixture Omi error"); }, dispose() {} },
     speech: {},
@@ -291,4 +292,36 @@ test("the island says what it sees and whether it can act, with the one fix", ()
   assert.deepEqual(p.calls, [["enableComputer"]]);
   p.render({ computer: { ready: false, reason: "unsupported", fix: null } });
   assert.equal(p.elements.get("computer-enable").hidden, true);
+});
+
+test("labels with markup stay data: they cannot end the page script or add elements", () => {
+  const hostile = 'x</script><img src=x onerror="window.__pwned=1"><!-- \u2028';
+  const html = dynamicIslandHtml("AA==", { ...islandLabels(), idle: hostile });
+  assert.equal(html.split("</script>").length, 2);
+  assert.equal(html.includes("<img src=x"), false);
+  const p = page({ labels: { ...islandLabels(), idle: hostile } });
+  assert.equal(p.elements.get("label").textContent, hostile);
+});
+
+test("the island says when a private app keeps the screen hidden", () => {
+  const p = page();
+  p.render({ expanded: true, capture: { enabled: true, hidden: true, app: "" } });
+  assert.equal(p.elements.get("capture-status").textContent, "Screen hidden: private app in front");
+  p.render({ capture: { enabled: true, hidden: false, app: "Safari" } });
+  assert.equal(p.elements.get("capture-status").textContent, "Screen in view · Safari");
+});
+
+test("searching Omi per request is a visible switch, shown only once Omi is connected", () => {
+  const p = page();
+  p.render({ expanded: true, omi: { status: "disconnected" } });
+  assert.equal(p.elements.get("recall").hidden, true);
+  p.render({ omi: { status: "ready", configured: true }, omiRecall: false });
+  assert.equal(p.elements.get("recall").hidden, false);
+  assert.equal(p.elements.get("recall").textContent, "Search Omi per request");
+  assert.equal(p.elements.get("recall").attributes["aria-pressed"], "false");
+  assert.match(p.elements.get("recall").title, /Off until you turn it on/);
+  p.click("recall");
+  assert.deepEqual(p.calls, [["toggleOmiRecall"]]);
+  p.render({ omiRecall: true });
+  assert.equal(p.elements.get("recall").attributes["aria-pressed"], "true");
 });

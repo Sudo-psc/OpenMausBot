@@ -40,8 +40,10 @@ visuais extraídos do Vovy. OpenMausBot mantém sua licença Apache 2.0.
 - Omi continua funcionando em paralelo. O adaptador usa a API oficial; não lê os
   arquivos privados do aplicativo e não controla seu microfone.
 - Memória do Omi em três caminhos: a amostra recente (20 memórias e 10
-  conversas, renovada a cada 2 minutos); uma busca por pedido, que envia ao Omi
-  os primeiros 200 caracteres do pedido e inclui até 8 memórias relacionadas; e
+  conversas, renovada a cada 2 minutos); uma busca por pedido, desligada por
+  padrão, que a pessoa liga no botão Buscar no Omi a cada pedido (volta a desligar
+  ao reabrir o app), que envia ao Omi os primeiros 200 caracteres do pedido e
+  inclui até 8 memórias relacionadas; e
   a gravação, só pelos botões Salvar nota ou Salvar resposta, que cria uma
   memória privada de até 500 caracteres com a etiqueta `openmausbot`. Gravar
   exige uma chave com o escopo `memories:write`. Nada é gravado sem o comando.
@@ -153,7 +155,7 @@ reais, captura real da tela e conta Omi real, incluindo a busca
 - **Conversar** (`⌘⇧Space` / `Ctrl+Shift+Space`): conversa por voz contínua, com
   resposta falada. Os dois modos têm botão, rótulo e aviso próprios.
 - **Registro durante a conversa:** com a percepção ativa, a ilha guarda só em
-  memória até 12 momentos dos últimos 5 minutos (fora da conversa: 3 momentos, 30
+  memória até 12 momentos dos últimos 3 minutos (fora da conversa: 3 momentos, 30
   segundos). Pausar, bloquear a tela ou encerrar a conversa descarta o excedente.
 - **Filtro de novidade:** cada captura recebe uma assinatura visual de 64 bits. A
   ilha espera que a próxima tela se pareça com a última guardada e só guarda outra
@@ -167,11 +169,24 @@ reais, captura real da tela e conta Omi real, incluindo a busca
   Sem o modelo, a ilha usa palavras em comum.
 - **Situação do computador:** com a percepção ativa, o pedido leva a hora local,
   o app em primeiro plano (no Mac, via `lsappinfo`), os nomes de até 6 janelas
-  abertas e se o controle do computador está disponível, com a orientação para o
-  bot usar suas ferramentas de controle e conferir a tela antes de agir. Com a
-  percepção pausada, nada disso é enviado.
+  abertas, lidos só no envio, e se o controle do computador está disponível. Com
+  a percepção pausada, nada disso é enviado.
+- **Apps e títulos privados:** um app em primeiro plano cujo nome sugere senhas,
+  bancos ou pagamento oculta a tela: nada é capturado enquanto ele estiver na
+  frente, o que já estava guardado é descartado e a ilha avisa. Títulos de
+  janela com esses termos nunca entram na lista. A correspondência é por trecho do
+  nome, então um site dentro do navegador só é pego se o título disser isso.
 - **Controle do computador:** a ilha mostra o estado do controle que os bots já
   usam e oferece Ativar ou Permitir quando há correção possível.
+
+### Modelo de ameaça: dados externos
+
+Tela, títulos de janela, nome do app e memórias do Omi vêm de fora e podem
+conter instruções para o bot. A mensagem os marca como não confiáveis e pede que
+o bot nunca aja no computador por causa de texto que apareça neles, e que
+pergunte no chat. Isso é uma orientação ao modelo, não um bloqueio: um modelo
+que a ignore ainda poderia agir. Fechar essa lacuna exige confirmação nas
+ferramentas de controle do computador, no servidor, e está pendente.
 
 Não verificado em Mac real: a saída de `lsappinfo`, a ordem das janelas, a
 assinatura visual em telas reais e um modelo `embeddinggemma` de verdade.

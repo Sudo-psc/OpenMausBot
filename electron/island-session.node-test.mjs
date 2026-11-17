@@ -12,11 +12,11 @@ const deferred = () => { let resolve; const promise = new Promise(done => { reso
 function harness(options = {}) {
   const h = { views: [], asks: [], preparations: [], requests: [], starts: [], stopped: [], finished: [], opened: [],
     active: false, busy: false, frameList: [], omiContext: "Omi fixture context", disposed: 0, sink: null,
-    recalls: [], recalled: "", remembered: [], selections: [], continuous: [], app: "Notas", windows: ["Lista de compras"],
+    recalls: [], recalled: "", remembered: [], hidden: false, selections: [], continuous: [], app: "Notas", windows: ["Lista de compras"],
     computerNow: { ready: true, reason: null, fix: null }, enabled: 0 };
   h.session = createIslandSession({
-    screenContext: { snapshot: () => ({ active: h.active, frameCount: h.frameList.length, app: h.app, windows: h.windows }),
-      frames: () => h.frameList, select: async (query, signal) => { h.selections.push([query, signal]); return h.active ? h.frameList : []; },
+    screenContext: { snapshot: () => ({ active: h.active, frameCount: h.frameList.length, app: h.app, windows: h.windows, hidden: h.hidden }),
+      frames: () => h.frameList, situation: async () => (h.active && !h.hidden ? { app: h.app, windows: h.windows } : null), select: async (query, signal) => { h.selections.push([query, signal]); return h.active ? h.frameList : []; },
       setContinuous: on => h.continuous.push(on),
       start: () => { h.active = true; }, pause: () => { h.active = false; h.frameList = []; },
       dispose: () => { h.active = false; h.frameList = []; h.disposed += 1; } },
@@ -259,6 +259,7 @@ async function say(h, words) {
 
 test("memories Omi finds for the request come before the cached Omi context", async () => {
   const h = harness();
+  h.session.toggleOmiRecall();
   h.recalled = "Memórias relacionadas";
   await h.session.send("  Qual é o prazo do artigo?  ");
   assert.equal(h.recalls[0][0], "Qual é o prazo do artigo?");
@@ -405,6 +406,7 @@ test("pausing perception while Omi is still searching keeps the screen off the r
   for (const pause of ["toggleCapture", "suspend"]) {
     const searching = deferred();
     const h = harness({ recall: () => searching.promise });
+    h.session.toggleOmiRecall();
     h.session.toggleCapture();
     h.frameList = [{ dataUrl: "fixture-image" }];
     const sending = h.session.send("Explique a tela"); await flush();
@@ -522,5 +524,37 @@ test("every way out of a voice chat returns to the short screen record", async (
   await say(h, "Pedido");
   assert.equal(h.continuous.at(-1), false);
   assert.equal(h.views.at(-1).conversation, false);
+  h.session.dispose();
+});
+
+test("a sensitive app in front leaves the request without a situation and the island says why", async () => {
+  const h = harness();
+  h.session.toggleCapture();
+  h.hidden = true;
+  h.frameList = [];
+  await h.session.send("Resuma");
+  assert.equal(h.preparations[0].surroundings, undefined);
+  assert.equal(h.views.at(-1).capture.hidden, true);
+  assert.equal(h.views.at(-1).capture.app, "");
+  assert.equal(h.views.at(-1).contextSummary, "");
+  h.session.dispose();
+});
+
+test("the request is sent to Omi for related memories only after the person turns that on", async () => {
+  const h = harness();
+  h.recalled = "Memórias relacionadas";
+  assert.equal(h.views.at(-1)?.omiRecall ?? false, false);
+  await h.session.send("Qual é o prazo do artigo?");
+  assert.deepEqual(h.recalls, []);
+  assert.equal(h.preparations[0].omiContext, "Omi fixture context");
+  h.session.toggleOmiRecall();
+  assert.equal(h.views.at(-1).omiRecall, true);
+  await h.session.send("E o do resumo?");
+  assert.equal(h.recalls.length, 1);
+  assert.equal(h.recalls[0][0], "E o do resumo?");
+  h.session.toggleOmiRecall();
+  assert.equal(h.views.at(-1).omiRecall, false);
+  await h.session.send("Outro pedido");
+  assert.equal(h.recalls.length, 1);
   h.session.dispose();
 });

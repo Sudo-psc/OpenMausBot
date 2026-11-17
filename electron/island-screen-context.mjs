@@ -3,12 +3,12 @@ import { AWARENESS_LIMITS, createSurpriseGate, frameSignature, selectFrames } fr
 
 export const SCREEN_CONTEXT_LIMITS = Object.freeze({ intervalMs: 5_000, ttlMs: 30_000, maxFrames: 3, maxFrameBytes: 400_000 });
 /** While a voice conversation runs: a longer, memory-only record of the moments the screen really changed. */
-export const SCREEN_TIMELINE_LIMITS = Object.freeze({ intervalMs: 3_000, ttlMs: 300_000, maxFrames: 12 });
+export const SCREEN_TIMELINE_LIMITS = Object.freeze({ intervalMs: 3_000, ttlMs: 180_000, maxFrames: 12 });
 
 const label = value => typeof value === "string" ? [...value].filter(character => character.codePointAt(0) >= 32).join("").trim().slice(0, AWARENESS_LIMITS.textChars) : "";
 
 export function createScreenContext({ captureFrame, onChange = () => {}, now = Date.now,
-  setTimer = setTimeout, clearTimer = clearTimeout, intervalMs = SCREEN_CONTEXT_LIMITS.intervalMs, embed } = {}) {
+  setTimer = setTimeout, clearTimer = clearTimeout, intervalMs = SCREEN_CONTEXT_LIMITS.intervalMs, embed, surroundings } = {}) {
   if (typeof captureFrame !== "function") throw new TypeError("captureFrame is required");
   if (!Number.isFinite(intervalMs) || intervalMs < 1_000) throw new RangeError("intervalMs must be at least 1000");
   let active = false;
@@ -19,6 +19,7 @@ export function createScreenContext({ captureFrame, onChange = () => {}, now = D
   let records = [];
   let error = null;
   let continuous = false;
+  let hidden = false;
   const gate = createSurpriseGate();
   const limits = () => continuous ? SCREEN_TIMELINE_LIMITS : SCREEN_CONTEXT_LIMITS;
 
@@ -28,7 +29,7 @@ export function createScreenContext({ captureFrame, onChange = () => {}, now = D
 
   function snapshot() {
     prune();
-    return { active, capturing: pending && active, error, frameCount: records.length, continuous,
+    return { active, capturing: pending && active, error, frameCount: records.length, continuous, hidden,
       lastCapturedAt: records.at(-1)?.capturedAt ?? null,
       displayId: records.at(-1)?.displayId ?? null,
       app: records.at(-1)?.app ?? "", windows: [...(records.at(-1)?.windows ?? [])] };
@@ -51,6 +52,15 @@ export function createScreenContext({ captureFrame, onChange = () => {}, now = D
     try {
       const frame = await captureFrame();
       if (!active || disposed || started !== generation) return;
+      if (frame?.sensitive === true) {
+        generation += 1;
+        records = [];
+        gate.reset();
+        hidden = true;
+        error = null;
+        return;
+      }
+      hidden = false;
       if (!frame || typeof frame.dataUrl !== "string" || !/^data:image\/(jpeg|png);base64,[A-Za-z0-9+/]+=*$/.test(frame.dataUrl)
         || Buffer.byteLength(frame.dataUrl) > SCREEN_CONTEXT_LIMITS.maxFrameBytes) {
         throw Object.assign(new Error("Invalid screen frame"), { code: "capture-unavailable" });
@@ -87,9 +97,20 @@ export function createScreenContext({ captureFrame, onChange = () => {}, now = D
     timer = null;
     records = [];
     error = null;
+    hidden = false;
     gate.reset();
     notify();
     return snapshot();
+  }
+
+  /** The app in front and the open window names for a request, read now. null while perception is off or hidden. */
+  async function situation() {
+    if (!active || hidden) return null;
+    const started = generation;
+    const around = typeof surroundings === "function" ? await Promise.resolve().then(surroundings).catch(() => null)
+      : { app: records.at(-1)?.app, windows: records.at(-1)?.windows };
+    if (!active || disposed || started !== generation || hidden || !around || around.sensitive) return null;
+    return { app: around.app ?? "", windows: Array.isArray(around.windows) ? around.windows : [] };
   }
 
   /** The frames worth sending with `query`. Resolves [] when perception was paused while it chose. */
@@ -112,6 +133,7 @@ export function createScreenContext({ captureFrame, onChange = () => {}, now = D
     },
     pause,
     select,
+    situation,
     setContinuous(on) {
       if (continuous === Boolean(on)) return;
       continuous = Boolean(on);
@@ -133,10 +155,9 @@ export function createDesktopScreenCapture({ desktopCapturer, screen, systemPref
       throw Object.assign(new Error("Screen recording permission is denied"), { code: "screen-permission-denied" });
     }
     const displayId = String(screen.getDisplayNearestPoint(screen.getCursorScreenPoint()).id);
-    const [sources, surroundings] = await Promise.all([
-      desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 960, height: 600 }, fetchWindowIcons: false }),
-      Promise.resolve().then(describe).catch(() => ({})),
-    ]);
+    const surroundings = await Promise.resolve().then(() => describe({ windows: false })).catch(() => ({}));
+    if (surroundings?.sensitive === true) return { sensitive: true, displayId };
+    const sources = await desktopCapturer.getSources({ types: ["screen"], thumbnailSize: { width: 960, height: 600 }, fetchWindowIcons: false });
     if (isSuspended()) throw Object.assign(new Error("Screen is suspended"), { code: "screen-suspended" });
     const source = sources.find(item => item.display_id === displayId);
     if (!source || source.thumbnail.isEmpty()) throw new Error("The selected display is unavailable");

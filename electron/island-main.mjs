@@ -48,14 +48,16 @@ export function createDynamicIsland({ BrowserWindow, screen, desktopCapturer, sy
   const keyStore = suppliedKeyStore ?? createIslandKeyStore({ file: path.join(dataDir, "island-omi-key.enc"),
     encryption: { available: async () => (await safeStorage.isAsyncEncryptionAvailable()) && (process.platform !== "linux" || safeStorage.getSelectedStorageBackend() !== "basic_text"), encrypt: value => safeStorage.encryptStringAsync(value),
       decrypt: value => safeStorage.decryptStringAsync(value) } });
+  const describe = createSurroundings({ desktopCapturer, ignore: () => [win.getTitle()] });
   const screenContext = createScreenContext({ captureFrame: captureFrame ?? createDesktopScreenCapture({ desktopCapturer, screen,
-    systemPreferences, isSuspended: () => suspended,
-    describe: createSurroundings({ desktopCapturer, ignore: () => [win.getTitle()] }) }), embed: embedder ? (texts, signal) => embedder.embed(texts, signal) : undefined,
+    systemPreferences, isSuspended: () => suspended, describe }),
+    surroundings: captureFrame ? undefined : () => describe(),
+    embed: embedder ? (texts, signal) => embedder.embed(texts, signal) : undefined,
     onChange: () => controller?.repaint() });
   const omi = createOmi({ readKey: () => keyStore.read(), writeKey: key => keyStore.write(key), onChange: () => controller?.repaint(), t });
   controller = createIslandSession({ screenContext, omi, speech, request, render, openChat, allowed, t, computer,
     server: createTalkServer({ request, prefs, serverKey: () => `${dataDir}:island`, starting }) });
-  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi", "dictate", "enableComputer"]);
+  const commands = new Set(["toggleExpanded", "toggleCapture", "toggleVoice", "send", "openChat", "pause", "refreshOmi", "configureOmi", "disconnectOmi", "stop", "spoken", "saveToOmi", "dictate", "enableComputer", "toggleOmiRecall"]);
   win.webContents.on("ipc-message", (event, channel, command, ...args) => {
     if (event.senderFrame !== win.webContents.mainFrame || channel !== "island:command" || !commands.has(command)) return;
     Promise.resolve(controller[command](...args)).catch(() => {});
